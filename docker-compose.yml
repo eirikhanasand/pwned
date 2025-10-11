@@ -8,7 +8,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "8080:8081"
+      - "8501:8081"
 
   postgres:
     image: postgres:15
@@ -22,7 +22,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "8502:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cdn -d cdn"]
       interval: 5s
