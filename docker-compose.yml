@@ -1,7 +1,7 @@
 services:
-  honey:
-    container_name: honey
-    image: honey
+  cdn:
+    container_name: cdn
+    image: cdn
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,19 +12,19 @@ services:
 
   postgres:
     image: postgres:15
-    container_name: honey_database
+    container_name: cdn_database
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-honey}
+      POSTGRES_USER: ${DB_USER:-cdn}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB:-honey}
+      POSTGRES_DB: ${DB:-cdn}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U honey -d honey"]
+      test: ["CMD-SHELL", "pg_isready -U cdn -d cdn"]
       interval: 5s
       retries: 5
 

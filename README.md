@@ -1,2 +1,2 @@
-# honey
-Honey API
+# cdn.hanasand.com
+Hansand CDN

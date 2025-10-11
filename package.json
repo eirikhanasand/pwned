@@ -1,9 +1,9 @@
 {
-  "name": "honey",
+  "name": "cdn.hanasand.com",
   "version": "1.0.0",
-  "description": "",
+  "description": "CDN for Hanasand.com",
   "license": "ISC",
-  "author": "",
+  "author": "Eirik Hanasand",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
