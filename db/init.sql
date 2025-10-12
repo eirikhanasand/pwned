@@ -19,12 +19,14 @@ BEGIN
     END IF;
 END $$;
 
--- Images
-CREATE TABLE IF NOT EXISTS images (
+-- Files
+CREATE TABLE IF NOT EXISTS files (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
     data BYTEA NOT NULL,
+    type TEXT NOT NULL,
+    path TEXT NOT NULL,
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -36,5 +38,6 @@ CREATE TABLE IF NOT EXISTS shares (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
 CREATE INDEX IF NOT EXISTS idx_shares_path ON shares(path);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
