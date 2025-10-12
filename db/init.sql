@@ -18,12 +18,22 @@ BEGIN
         EXECUTE 'GRANT ALL PRIVILEGES ON DATABASE "cdn" TO "cdn"';
     END IF;
 END $$;
+
+-- Images
 CREATE TABLE IF NOT EXISTS images (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
     data BYTEA NOT NULL,
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Shares
+CREATE TABLE IF NOT EXISTS shares (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);

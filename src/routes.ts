@@ -12,4 +12,9 @@ export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPlug
     fastify.get("files/", getFile)
     fastify.put("files/:id", putFile)
     fastify.post("files/:id", postFile)
+    
+    // shares
+    fastify.get("shares/", getFile)
+    fastify.put("shares/:id", putFile)
+    fastify.post("shares/:id", postFile)
 }
