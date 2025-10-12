@@ -6,7 +6,7 @@ export default async function getFile(req: FastifyRequest, res: FastifyReply) {
 
     try {
         const result = await run(
-            "SELECT id, name, description, data, type, path, uploaded_at FROM images WHERE id = $1",
+            "SELECT id, name, description, data, type, path, uploaded_at FROM files WHERE id = $1",
             [id]
         )
 

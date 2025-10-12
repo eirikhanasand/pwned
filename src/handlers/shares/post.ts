@@ -1,7 +1,7 @@
 import run from '#db'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-export default async function createShare(req: FastifyRequest, res: FastifyReply) {
+export default async function postShare(req: FastifyRequest, res: FastifyReply) {
     try {
         const { id, path, content } = req.body as { id?: string, path?: string; content?: string }
 

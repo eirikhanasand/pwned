@@ -6,7 +6,7 @@ export default async function getFileByPath(req: FastifyRequest, res: FastifyRep
 
     try {
         const result = await run(
-            "SELECT id, name, description, data, type, path, uploaded_at FROM images WHERE path = $1",
+            "SELECT id, name, description, data, type, path, uploaded_at FROM files WHERE path = $1",
             [id]
         )
 

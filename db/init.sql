@@ -21,7 +21,7 @@ END $$;
 
 -- Files
 CREATE TABLE IF NOT EXISTS files (
-    id SERIAL PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
     data BYTEA NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS files (
 
 -- Shares
 CREATE TABLE IF NOT EXISTS shares (
-    id SERIAL PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     path TEXT NOT NULL,
     content TEXT NOT NULL,
     timestamp TIMESTAMPTZ DEFAULT NOW()

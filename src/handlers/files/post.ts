@@ -20,7 +20,7 @@ export default async function postFile(req: FastifyRequest, res: FastifyReply) {
 
     try {
         const result = await run(
-            `INSERT INTO images (name, description, data, path, type)
+            `INSERT INTO files (name, description, data, path, type)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id`,
             [name, description || null, buffer, path, type]

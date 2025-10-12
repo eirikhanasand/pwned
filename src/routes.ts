@@ -5,20 +5,23 @@ import putFile from './handlers/files/put.ts'
 import postFile from './handlers/files/post.ts'
 import deleteFile from './handlers/files/delete.ts'
 import getFileByPath from './handlers/files/getByPath.ts'
+import getShare from './handlers/shares/get.ts'
+import putShare from './handlers/shares/put.ts'
+import postShare from './handlers/shares/post.ts'
 
 export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPluginOptions) {
     // index
     fastify.get("/", getIndex)
 
     // files
-    fastify.get("files/:id", getFile)
-    fastify.get("files/path/:id", getFileByPath)
-    fastify.put("files/:id", putFile)
-    fastify.post("files/:id", postFile)
-    fastify.delete("files/:id", deleteFile)
+    fastify.get("/files/:id", getFile)
+    fastify.get("/files/path/:id", getFileByPath)
+    fastify.put("/files/:id", putFile)
+    fastify.post("/files/:id", postFile)
+    fastify.delete("/files/:id", deleteFile)
 
     // shares
-    fastify.get("shares/", getFile)
-    fastify.put("shares/:id", putFile)
-    fastify.post("shares/:id", postFile)
+    fastify.get("/shares/:id", getShare)
+    fastify.put("/shares/:id", putShare)
+    fastify.post("/shares/:id", postShare)
 }

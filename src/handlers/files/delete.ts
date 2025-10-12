@@ -10,7 +10,7 @@ export default async function deleteFile(req: FastifyRequest, res: FastifyReply)
 
     try {
         const result = await run(
-            'DELETE FROM images WHERE id = $1 RETURNING id',
+            'DELETE FROM files WHERE id = $1 RETURNING id',
             [id]
         )
 

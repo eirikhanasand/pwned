@@ -15,9 +15,9 @@ const {
 } = config
 const { Pool } = pg
 const pool = new Pool({
-    user: DB_USER || "hanasand",
+    user: DB_USER || "cdn",
     host: DB_HOST,
-    database: DB || "hanasand_database",
+    database: DB || "cdn",
     password: DB_PASSWORD,
     port: Number(DB_PORT) || 5432,
     max: Number(DB_MAX_CONN) || 20,
