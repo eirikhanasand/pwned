@@ -27,18 +27,18 @@ export default async function getShare(req: FastifyRequest, res: FastifyReply) {
 }
 
 async function queryShare(id: string) {
-    const query = 'SELECT * FROM shares WHERE id = $1'
+    const query = 'SELECT * FROM share WHERE id = $1'
     const result = await run(query, [id])
 
     if (!result || result.rowCount === 0) {
         const query = `
-        INSERT INTO shares (id, content)
+        INSERT INTO share (id, content)
         VALUES ($1, $2)
         RETURNING *
         `
         const insertResult = await run(query, [id, ""])
         if (insertResult) {
-            const query = 'SELECT * FROM shares WHERE id = $1'
+            const query = 'SELECT * FROM share WHERE id = $1'
             const result = await run(query, [id])
             return result
         }

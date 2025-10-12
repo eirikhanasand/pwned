@@ -10,7 +10,7 @@ export default async function postShare(req: FastifyRequest, res: FastifyReply) 
         }
 
         const query = `
-        INSERT INTO shares (id, path, content)
+        INSERT INTO share (id, path, content)
         VALUES ($1, $2, $3)
         RETURNING *
         `

@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS files (
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Shares
-CREATE TABLE IF NOT EXISTS shares (
+-- Share
+CREATE TABLE IF NOT EXISTS share (
     id TEXT PRIMARY KEY,
     path TEXT,
     content TEXT NOT NULL,
@@ -39,5 +39,5 @@ CREATE TABLE IF NOT EXISTS shares (
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
-CREATE INDEX IF NOT EXISTS idx_shares_path ON shares(path);
+CREATE INDEX IF NOT EXISTS idx_share_path ON share(path);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
