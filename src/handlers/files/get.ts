@@ -11,7 +11,7 @@ export default async function getFile(req: FastifyRequest, res: FastifyReply) {
         )
 
         if (result.rows.length === 0) {
-            return res.status(404).send({ error: "Image not found" })
+            return res.status(404).send({ error: "File not found" })
         }
 
         const image = result.rows[0]

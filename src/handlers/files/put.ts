@@ -53,7 +53,7 @@ export default async function putFile(req: FastifyRequest, res: FastifyReply) {
         const result = await run(sql, values)
 
         if (result.rows.length === 0) {
-            return res.status(404).send({ error: "Image not found" })
+            return res.status(404).send({ error: "File not found" })
         }
 
         return { updated: result.rows[0].id }

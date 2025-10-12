@@ -22,7 +22,7 @@ export default async function postShare(req: FastifyRequest, res: FastifyReply) 
 
         return res.status(201).send({ data: result.rows[0] })
     } catch (error) {
-        console.error(`Error creating share: ${error}`)
+        console.log(`Error creating share: ${error}`)
         return res.status(500).send({ error: 'Failed to create share' })
     }
 }

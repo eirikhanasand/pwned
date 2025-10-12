@@ -15,12 +15,12 @@ export default async function deleteFile(req: FastifyRequest, res: FastifyReply)
         )
 
         if (result.rows.length === 0) {
-            return res.status(404).send({ error: 'Image not found' })
+            return res.status(404).send({ error: 'File not found' })
         }
 
         return { deleted: result.rows[0].id }
     } catch (error) {
-        console.error('Error deleting image:', error)
+        console.log('Error deleting image:', error)
         return res.status(500).send({ error: 'Internal server error' })
     }
 }

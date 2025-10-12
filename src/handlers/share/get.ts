@@ -21,7 +21,7 @@ export default async function getShare(req: FastifyRequest, res: FastifyReply) {
             return res.status(404).send({ error: 'Share not found' })
         }
     } catch (error) {
-        console.error(`Error fetching share: ${error}`)
+        console.log(`Error fetching share: ${error}`)
         return res.status(500).send({ error: 'Failed to fetch share' })
     }
 }
@@ -42,6 +42,10 @@ async function queryShare(id: string) {
             const result = await run(query, [id])
             return result
         }
+    }
+
+    if (result.rowCount) {
+        return result
     }
 
     return 404
