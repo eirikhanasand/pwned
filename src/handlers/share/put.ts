@@ -28,7 +28,7 @@ export default async function putShare(req: FastifyRequest, res: FastifyReply) {
             return res.status(404).send({ error: 'Share not found' })
         }
 
-        return res.status(200).send({ data: result.rows[0] })
+        return res.status(200).send(result.rows[0])
     } catch (error) {
         console.log(`Error updating share: ${error}`)
         return res.status(500).send({ error: 'Failed to update share' })

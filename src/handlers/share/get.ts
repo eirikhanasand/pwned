@@ -16,7 +16,7 @@ export default async function getShare(req: FastifyRequest, res: FastifyReply) {
                 throw new Error("Share not found")
             }
 
-            return res.status(200).send({ data: result.rows[0] })
+            return res.status(200).send(result.rows[0])
         } catch (error) {
             return res.status(404).send({ error: 'Share not found' })
         }
