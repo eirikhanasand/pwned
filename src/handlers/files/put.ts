@@ -2,21 +2,23 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import run from '#utils/db.ts'
 
 type PutFileProps = {
-    name: string
-    description: string
-    data: string
+    name?: string
+    description?: string
+    data?: string
+    path?: string
+    type?: string
 }
 
 export default async function putFile(req: FastifyRequest, res: FastifyReply) {
     const { id } = req.params as { id: string }
-    const { name, description, data } = req.body as PutFileProps
+    const { name, description, data, path, type } = req.body as PutFileProps
 
-    if (!name && !description && !data) {
+    if (!name && !description && !data && !path && !type) {
         return res.status(400).send({ error: "Nothing to update" })
     }
 
-    const updates = []
-    const values = []
+    const updates: string[] = []
+    const values: any[] = []
     let idx = 1
 
     if (name) {
@@ -31,12 +33,21 @@ export default async function putFile(req: FastifyRequest, res: FastifyReply) {
 
     if (data) {
         updates.push(`data = $${idx++}`)
-        values.push(Buffer.from(data, "base64"))
+        values.push(Buffer.from(data, 'base64'))
+    }
+
+    if (path) {
+        updates.push(`path = $${idx++}`)
+        values.push(path)
+    }
+
+    if (type) {
+        updates.push(`type = $${idx++}`)
+        values.push(type)
     }
 
     values.push(id)
-
-    const sql = `UPDATE images SET ${updates.join(", ")} WHERE id = $${idx} RETURNING id`
+    const sql = `UPDATE images SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id`
 
     try {
         const result = await run(sql, values)
