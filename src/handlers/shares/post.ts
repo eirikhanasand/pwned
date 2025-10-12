@@ -1,16 +1,14 @@
 import run from '#db'
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { randomUUID } from 'crypto'
 
 export default async function createShare(req: FastifyRequest, res: FastifyReply) {
     try {
-        const { path, content } = req.body as { path?: string; content?: string }
+        const { id, path, content } = req.body as { id?: string, path?: string; content?: string }
 
-        if (!path || !content) {
-            return res.status(400).send({ error: 'Missing required fields: path or content' })
+        if (!id || !path || !content) {
+            return res.status(400).send({ error: 'Missing required fields: id, path or content' })
         }
 
-        const id = randomUUID()
         const query = `
         INSERT INTO shares (id, path, content)
         VALUES ($1, $2, $3)

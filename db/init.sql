@@ -30,10 +30,11 @@ CREATE TABLE IF NOT EXISTS images (
 
 -- Shares
 CREATE TABLE IF NOT EXISTS shares (
-    id TEXT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     path TEXT NOT NULL,
     content TEXT NOT NULL,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_shares_path ON shares(path);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
