@@ -40,4 +40,4 @@ CREATE TABLE IF NOT EXISTS share (
 
 CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
 CREATE INDEX IF NOT EXISTS idx_share_path ON share(path);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_images_name ON images(name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_files_name ON files(name);

@@ -47,7 +47,7 @@ export default async function putFile(req: FastifyRequest, res: FastifyReply) {
     }
 
     values.push(id)
-    const sql = `UPDATE images SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id`
+    const sql = `UPDATE files SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id`
 
     try {
         const result = await run(sql, values)
