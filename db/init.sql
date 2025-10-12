@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS files (
 -- Shares
 CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
-    path TEXT NOT NULL,
+    path TEXT,
     content TEXT NOT NULL,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
