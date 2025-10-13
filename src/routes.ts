@@ -9,6 +9,9 @@ import getShare from './handlers/share/get.ts'
 import putShare from './handlers/share/put.ts'
 import postShare from './handlers/share/post.ts'
 import checkPath from './handlers/files/checkPath.ts'
+import getLink from './handlers/links/get.ts'
+import putLink from './handlers/links/put.ts'
+import postLink from './handlers/links/post.ts'
 
 export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPluginOptions) {
     // index
@@ -26,4 +29,9 @@ export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPlug
     fastify.get("/share/:id", getShare)
     fastify.put("/share/:id", putShare)
     fastify.post("/share/:id", postShare)
+
+    // links
+    fastify.get("/link/:id", getLink)
+    fastify.put("/link/:id", putLink)
+    fastify.post("/link/:id", postLink)
 }

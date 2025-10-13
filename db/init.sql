@@ -38,5 +38,12 @@ CREATE TABLE IF NOT EXISTS share (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Links
+CREATE TABLE IF NOT EXISTS links (
+    id TEXT PRIMARY KEY,
+    path TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
 CREATE INDEX IF NOT EXISTS idx_share_path ON share(path);
