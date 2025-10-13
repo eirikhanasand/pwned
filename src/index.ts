@@ -3,10 +3,17 @@ import Fastify from 'fastify'
 import routes from './routes.ts'
 import getIndex from './handlers/index/get.ts'
 import websocketPlugin from '@fastify/websocket'
+import fastifyMultipart from '@fastify/multipart'
 import ws from './plugins/ws.ts'
 
 const fastify = Fastify({
     logger: true
+})
+
+fastify.register(fastifyMultipart, {
+    limits: {
+        fileSize: 50 * 1024 * 1024
+    }
 })
 
 fastify.register(websocketPlugin)

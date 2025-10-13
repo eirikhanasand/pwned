@@ -15,8 +15,9 @@ export default async function getFileByPath(req: FastifyRequest, res: FastifyRep
         }
 
         const file = result.rows[0]
-        res.header("Content-Type", "application/octet-stream")
-        return file.data
+        res.header("Content-Type", file.type)
+        res.header("Content-Disposition", `inline; filename="${file.name}"`)
+        return res.send(file.data)
     } catch (err) {
         console.log(err)
         res.status(500).send({ error: "Internal server error" })
