@@ -31,7 +31,7 @@ export default async function postFile(req: FastifyRequest, res: FastifyReply) {
                     WHEN xmax = 0 THEN 'ok'
                     ELSE 'conflict'
                 END AS status;`,
-            [id, name, description || null, buffer, path, type]
+            [id, name, description || null, buffer, path || id, type]
         )
 
         if (result.rows[0].status === 'conflict') {
