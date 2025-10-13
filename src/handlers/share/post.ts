@@ -12,6 +12,10 @@ export default async function postShare(req: FastifyRequest, res: FastifyReply) 
         const query = `
         INSERT INTO share (id, path, content)
         VALUES ($1, $2, $3)
+        ON CONFLICT (id)
+        DO UPDATE SET
+            path = EXCLUDED.path,
+            content = EXCLUDED.content
         RETURNING *
         `
         const result = await run(query, [id, path, content])
