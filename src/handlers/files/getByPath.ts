@@ -13,9 +13,10 @@ export default async function getFileByPath(req: FastifyRequest, res: FastifyRep
         if (result.rows.length === 0) {
             return res.status(404).send({ error: "File not found" })
         }
-        const image = result.rows[0]
+
+        const file = result.rows[0]
         res.header("Content-Type", "application/octet-stream")
-        return image.data
+        return file.data
     } catch (err) {
         console.log(err)
         res.status(500).send({ error: "Internal server error" })
