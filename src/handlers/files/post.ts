@@ -21,11 +21,22 @@ export default async function postFile(req: FastifyRequest, res: FastifyReply) {
     const id = randomUUID().slice(0, 6)
 
     try {
-        await run(
+        const result = await run(
             `INSERT INTO files (id, name, description, data, path, type)
-            VALUES ($1, $2, $3, $4, $5, $6);`,
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (path) DO UPDATE
+            SET path = EXCLUDED.path  -- no-op update
+            RETURNING 
+                CASE 
+                    WHEN xmax = 0 THEN 'ok'
+                    ELSE 'conflict'
+                END AS status;`,
             [id, name, description || null, buffer, path, type]
         )
+
+        if (result.rows[0].status === 'conflict') {
+            return res.status(409).send({ error: `Path '${path}' taken` })
+        }
 
         return { id }
     } catch (error) {

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS files (
     description TEXT,
     data BYTEA NOT NULL,
     type TEXT NOT NULL,
-    path TEXT NOT NULL,
+    path TEXT UNIQUE NOT NULL,
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
