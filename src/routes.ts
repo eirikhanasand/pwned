@@ -17,7 +17,7 @@ export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPlug
     fastify.get("/files/:id", getFile)
     fastify.get("/files/path/:id", getFileByPath)
     fastify.put("/files/:id", putFile)
-    fastify.post("/files/:id", postFile)
+    fastify.post("/files", postFile)
     fastify.delete("/files/:id", deleteFile)
 
     // share
