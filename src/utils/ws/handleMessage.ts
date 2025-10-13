@@ -64,7 +64,7 @@ function queueSave(id: string, content: string) {
         } finally {
             pendingUpdates.delete(id)
         }
-    }, 5000)
+    }, 1000)
 
     pendingUpdates.set(id, { content, timer })
 }
