@@ -5,17 +5,17 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 export default async function postLink(req: FastifyRequest, res: FastifyReply) {
     try {
         const { id } = req.params as { id: string }
-        const { path } = req.body as { path?: string }
+        const { path } = req.body as { path?: string } ?? {}
 
         if (!path) {
-            return res.status(400).send({ error: 'Missing id or path' })
+            return res.status(400).send({ error: 'Missing path' })
         }
 
         const query = `
-        INSERT INTO links (id, path)
-        VALUES ($1, $2)
-        ON CONFLICT (id)
-        DO NOTHING;
+            INSERT INTO links (id, path)
+            VALUES ($1, $2)
+            ON CONFLICT (id)
+            DO NOTHING;
         `
         
         const randomId = randomUUID().slice(0, 6)
