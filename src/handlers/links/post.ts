@@ -1,11 +1,13 @@
 import run from '#db'
+import { randomUUID } from 'crypto'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 export default async function postLink(req: FastifyRequest, res: FastifyReply) {
     try {
-        const { id, path } = req.body as { id?: string, path?: string }
+        const { id } = req.params as { id: string }
+        const { path } = req.body as { path?: string }
 
-        if (!id || !path) {
+        if (!path) {
             return res.status(400).send({ error: 'Missing id or path' })
         }
 
@@ -15,7 +17,9 @@ export default async function postLink(req: FastifyRequest, res: FastifyReply) {
         ON CONFLICT (id)
         DO NOTHING;
         `
-        const result = await run(query, [id, path])
+        
+        const randomId = randomUUID().slice(0, 6)
+        const result = await run(query, [id || randomId, path])
 
         if (!result || result.rowCount === 0) {
             return res.status(409).send({ error: 'Shortcut already taken' })
