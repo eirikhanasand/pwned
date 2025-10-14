@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS share (
     id TEXT PRIMARY KEY,
     path TEXT,
     content TEXT NOT NULL,
-    git TEXT NOT NULL,
+    git TEXT,
     locked BOOLEAN DEFAULT FALSE,
     owner TEXT,
     parent TEXT,
