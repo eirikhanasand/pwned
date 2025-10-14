@@ -25,7 +25,7 @@ export default async function postLink(req: FastifyRequest, res: FastifyReply) {
             return res.status(409).send({ error: 'Shortcut already taken' })
         }
 
-        return res.status(201).send(result.rows[0])
+        return res.status(201).send({ id: id || randomId, path })
     } catch (error) {
         console.log(`Error creating shortcut: ${error}`)
         return res.status(500).send({ error: 'Failed to create shortcut' })

@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS share (
 -- Links
 CREATE TABLE IF NOT EXISTS links (
     id TEXT PRIMARY KEY,
-    path TEXT,
+    path TEXT NOT NULL,
     visits INT NOT NULL DEFAULT 0,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
