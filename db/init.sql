@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS share (
     path TEXT,
     content TEXT NOT NULL,
     git TEXT NOT NULL,
-    writeOnly BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE,
+    owner TEXT,
     parent TEXT,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
