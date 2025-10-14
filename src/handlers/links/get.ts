@@ -11,8 +11,7 @@ export default async function getLink(req: FastifyRequest, res: FastifyReply) {
         
         try {
             const result = await queryLinks(id)
-            
-            if (result === 404) {
+            if (!result) {
                 throw new Error('Link not found')
             }
 
@@ -27,24 +26,17 @@ export default async function getLink(req: FastifyRequest, res: FastifyReply) {
 }
 
 async function queryLinks(id: string) {
-    const query = 'SELECT * FROM links WHERE id = $1'
-    const result = await run(query, [id])
+    const updateQuery = `
+        UPDATE links
+        SET visits = visits + 1
+        WHERE id = $1
+        RETURNING *;
+    `
+    const updateResult = await run(updateQuery, [id])
 
-    if (!result || result.rowCount === 0) {
-        const query = `INSERT INTO links (id) VALUES ($1) RETURNING *`
-        const insertResult = await run(query, [id])
-        if (insertResult) {
-            const query = 'SELECT * FROM links WHERE id = $1'
-            const result = await run(query, [id])
-            return result.rows[0]
-        }
+    if (updateResult?.rowCount && updateResult.rowCount > 0) {
+        return updateResult.rows[0]
     }
 
-    if (result.rowCount && result.rowCount > 0) {
-        const updateQuery = `UPDATE links SET visits = visits + 1 WHERE id = $1 RETURNING *`
-        await run(updateQuery, [id])
-        return { ...result.rows[0], visits: result.rows[0].visits + 1 }
-    }
-
-    return 404
+    return null
 }
