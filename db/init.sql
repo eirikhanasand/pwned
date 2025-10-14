@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS share (
     id TEXT PRIMARY KEY,
     path TEXT,
     content TEXT NOT NULL,
+    git TEXT NOT NULL,
+    writeOnly BOOLEAN DEFAULT FALSE,
+    parent TEXT,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -48,3 +51,4 @@ CREATE TABLE IF NOT EXISTS links (
 
 CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
 CREATE INDEX IF NOT EXISTS idx_share_path ON share(path);
+CREATE INDEX IF NOT EXISTS idx_share_path ON share(parent);
