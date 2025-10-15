@@ -7,3 +7,5 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8201:8081"
+    volumes:
+      - ./passwords:/usr/src/app/passwords:ro
