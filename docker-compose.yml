@@ -9,6 +9,8 @@ services:
       - "8201:8081"
     volumes:
       - ./passwords:/usr/src/app/passwords:ro
+    networks:
+      - bloomnet
 
 networks:
   bloomnet:
