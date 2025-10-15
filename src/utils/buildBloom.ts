@@ -41,8 +41,7 @@ async function processFile(filePath: string, bloom: InstanceType<typeof BloomFil
         })
 
         rl.on('line', (line) => {
-            const password = line.trim()
-            if (password.length > 0) bloom.add(password)
+            if (line.length > 0) bloom.add(line)
         })
 
         rl.on('close', resolve)
