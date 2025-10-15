@@ -4,7 +4,7 @@ import routes from './routes.ts'
 import getIndex from './handlers/index/get.ts'
 import websocketPlugin from '@fastify/websocket'
 import fastifyMultipart from '@fastify/multipart'
-import ws from './plugins/ws.ts'
+import buildBloomPerFile from '#utils/buildBloom.ts'
 
 const fastify = Fastify({
     logger: true
@@ -24,7 +24,6 @@ fastify.register(cors, {
 
 const port = Number(process.env.PORT) || 8081
 
-fastify.register(ws, { prefix: "/api" })
 fastify.register(routes, { prefix: "/api" })
 fastify.get('/', getIndex)
 
@@ -38,6 +37,7 @@ async function start() {
 }
 
 async function main() {
+    buildBloomPerFile().catch(console.error)
     start()
 }
 

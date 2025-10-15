@@ -1,2 +1,2 @@
-# cdn.hanasand.com
-Hansand CDN
+# Bloom filters for hanasand.com
+Hansand Bloom filters

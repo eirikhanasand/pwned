@@ -1,34 +1,9 @@
 services:
-  cdn:
-    container_name: cdn
-    image: cdn
+  bloom:
+    container_name: bloom
+    image: bloom
     build:
       context: .
       dockerfile: Dockerfile
-    depends_on:
-      - postgres
-    env_file:
-      .env
     ports:
-      - "8501:8081"
-
-  postgres:
-    image: postgres:15
-    container_name: cdn_database
-    restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER:-cdn}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB:-cdn}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "8502:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cdn -d cdn"]
-      interval: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
+      - "8201:8081"
