@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8201:8081"
+      - "8201:8080"
     volumes:
       - ./passwords:/usr/src/app/passwords:ro
     networks:
