@@ -1,5 +1,4 @@
 // import pkg from 'bloom-filters'
-import { WebSocket as WS } from 'ws'
 import checkPwnedPassword from '#utils/pwnedCheck.ts'
 import execPipeAndBroadcast from './pipeAndBroadcast.ts'
 import broadcast from './broadcast.ts'
