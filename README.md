@@ -1,2 +1,2 @@
-# Bloom filters for hanasand.com
-Hansand Bloom filters
+# Pwned API for hanasand.com
+Hanasand pwned API

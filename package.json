@@ -1,7 +1,7 @@
 {
-  "name": "bloom",
+  "name": "pwned",
   "version": "1.0.0",
-  "description": "Bloom filter for Hanasand.com",
+  "description": "Pwned API for hanasand.com",
   "license": "ISC",
   "author": "Eirik Hanasand",
   "type": "module",

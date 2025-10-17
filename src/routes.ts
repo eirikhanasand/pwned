@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyPluginOptions } from "fastify"
 import getIndex from './handlers/index/get.ts'
-import bloomHandler from './handlers/bloom/post.ts'
+import pwnedHandler from './handlers/pwned/post.ts'
 
 export default async function apiRoutes(fastify: FastifyInstance, _: FastifyPluginOptions) {
     // index
     fastify.get("/", getIndex)
 
-    // bloom
-    fastify.post("/bloom", bloomHandler)
+    // pwned
+    fastify.post("/pwned", pwnedHandler)
 }

@@ -5,7 +5,7 @@ import broadcast from './broadcast.ts'
 
 // const { BloomFilter } = pkg
 
-export default async function bloomWsHandler(id: string, password: string) {
+export default async function pwnedWsHandler(id: string, password: string) {
     const count = await checkPwnedPassword(password)
     if (!count) {
         return broadcast(id, 'update', { ok: true })

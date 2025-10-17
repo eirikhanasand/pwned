@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import checkPwnedPassword from '#utils/pwnedCheck.ts'
 
-export default async function bloomHandler(req: FastifyRequest, res: FastifyReply) {
+export default async function pwnedHandler(req: FastifyRequest, res: FastifyReply) {
     const { password } = (await req.body as { password: string }) || {}
     if (!password) {
         return res.send({ ok: false, reason: 'No password provided.' })

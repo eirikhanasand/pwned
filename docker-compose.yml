@@ -1,7 +1,7 @@
 services:
-  bloom:
-    container_name: bloom
-    image: bloom
+  pwned:
+    container_name: pwned
+    image: pwned
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,10 +9,10 @@ services:
       - "8201:8080"
     volumes:
       - ./passwords:/usr/src/app/passwords:ro
-      - ./bloom:/usr/src/app/bloom:ro
+      - ./pwned:/usr/src/app/pwned:ro
     networks:
-      - bloomnet
+      - pwnednet
 
 networks:
-  bloomnet:
+  pwnednet:
     external: true
