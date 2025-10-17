@@ -16,11 +16,11 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         lines.forEach(line => {
             const match = line.match(/(.+):(\d+):(.+)/)
             if (match) {
-                const [, file, lineNumber] = match
+                const [, file, line] = match
                 broadcast(id, 'update', {
                     ok: false,
                     file,
-                    lineNumber: parseInt(lineNumber)
+                    line: parseInt(line)
                 })
             }
         })
