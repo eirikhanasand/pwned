@@ -4,6 +4,9 @@ FROM node:alpine
 # Sets the working directory
 WORKDIR /usr/src/app
 
+# Installs packages
+RUN apk add ripgrep
+
 # Copies package.json and package-lock.json to the Docker environment
 COPY package.json package-lock.json ./
 
