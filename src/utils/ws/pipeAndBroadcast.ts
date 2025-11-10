@@ -3,7 +3,7 @@ import broadcast, { clientsMap } from './broadcast.ts'
 
 export default function execPipeAndBroadcast(id: string, password: string): void {
     const child = spawn('rg',
-        ['-a', '-x', '-n', '--', password],
+        ['-a', '-x', '-n', '--max-depth', '1', '--', password],
         {
             stdio: ['ignore', 'pipe', 'pipe'],
             cwd: `${process.cwd()}/passwords`
