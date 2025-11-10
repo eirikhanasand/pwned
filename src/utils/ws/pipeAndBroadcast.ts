@@ -2,11 +2,11 @@ import { spawn } from 'child_process'
 import broadcast, { clientsMap } from './broadcast.ts'
 
 export default function execPipeAndBroadcast(id: string, password: string): void {
-    function parseLine(data: Buffer<ArrayBufferLike>) {
+    function parseLine(data: Buffer<ArrayBufferLike>, twoParts: boolean = false) {
         const text = data.toString()
         const lines = text.split('\n').filter(Boolean)
         lines.forEach(line => {
-            const match = line.match(/(.+):(\d+):(.+)/)
+            const match = (twoParts ? `${line}::` : line).match(/(.+):(\d+):(.+)/)
             if (match) {
                 const [, file, line] = match
                 broadcast(id, 'update', {
@@ -31,7 +31,7 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         cwd: `${process.cwd()}/passwords`
     })
 
-    child.stdout.on('data', (data: Buffer) => parseLine(data))
+    child.stdout.on('data', (data: Buffer) => parseLine(data, true))
     child.stderr.on('data', (err: Buffer) => {
         broadcast(id, 'update', { error: err.toString() })
     })
