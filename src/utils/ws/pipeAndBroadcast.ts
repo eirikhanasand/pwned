@@ -26,7 +26,7 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         }
     )
 
-    const findChild = spawn('bash', ['./find_all.sh', password], {
+    const findChild = spawn('sh', ['./find_all.sh', password], {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: `${process.cwd()}/passwords`
     })
