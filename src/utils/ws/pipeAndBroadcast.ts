@@ -47,6 +47,7 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         cwd: `${process.cwd()}/passwords`
     })
 
+    console.log("dirrr", `${process.cwd()}/passwords`)
     broadcast(id, 'update', { debug: `spawned rg pid=${child.pid}, find_all pid=${findChild.pid}` })
 
     child.stdout.on('data', (data: Buffer) => parseLine(data, false))
