@@ -16,11 +16,8 @@ export default function execPipeAndBroadcast(id: string, password: string): void
             const line = rawLine.trim()
             if (!line) return
 
-            console.log("recieved line", rawLine)
-            // Matches "file:line" or "file:line:match"
             const match = line.match(/^(.+):(\d+)(?::(.*))?$/)
             if (match) {
-                console.log(match)
                 const [, file, lineNum, matchText] = match
                 broadcast(id, 'update', {
                     ok: false,
@@ -33,8 +30,11 @@ export default function execPipeAndBroadcast(id: string, password: string): void
             }
         })
 
-        if (isFind) findLeftover = leftover
-        else childLeftover = leftover
+        if (isFind) {
+            findLeftover = leftover
+        } else {
+            childLeftover = leftover
+        }
     }
 
     const child = spawn('rg', ['-a', '-x', '-n', '--max-depth', '1', '--', password], {
@@ -47,14 +47,10 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         cwd: `${process.cwd()}/passwords`
     })
 
-    console.log("dirrr", `${process.cwd()}/passwords`)
     broadcast(id, 'update', { debug: `spawned rg pid=${child.pid}, find_all pid=${findChild.pid}` })
 
     child.stdout.on('data', (data: Buffer) => parseLine(data, false))
-    findChild.stdout.on('data', (data: Buffer) => {
-        console.log("denne", data.toString())
-        parseLine(data, true)
-    })
+    findChild.stdout.on('data', (data: Buffer) => parseLine(data, true))
 
     child.stderr.on('data', (err: Buffer) => {
         broadcast(id, 'update', { error: `rg stderr: ${err.toString()}` })
