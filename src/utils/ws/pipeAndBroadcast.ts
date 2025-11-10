@@ -31,7 +31,7 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         cwd: `${process.cwd()}/passwords`
     })
 
-    child.stdout.on('data', (data: Buffer) => parseLine(data, true))
+    child.stdout.on('data', (data: Buffer) => parseLine(data))
     child.stderr.on('data', (err: Buffer) => {
         broadcast(id, 'update', { error: err.toString() })
     })
@@ -41,7 +41,7 @@ export default function execPipeAndBroadcast(id: string, password: string): void
         clientsMap.delete(id)
     })
 
-    findChild.stdout.on('data', (data: Buffer) => parseLine(data))
+    findChild.stdout.on('data', (data: Buffer) => parseLine(data, true))
     findChild.stderr.on('data', (err: Buffer) => {
         broadcast(id, 'update', { error: err.toString() })
     })
