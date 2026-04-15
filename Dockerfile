@@ -1,5 +1,5 @@
 # Uses latest node alpine image for apk package manager
-FROM node:alpine
+FROM oven/bun:alpine
 
 # Sets the working directory
 WORKDIR /usr/src/app
@@ -11,10 +11,10 @@ RUN apk add ripgrep bash
 COPY package.json package-lock.json ./
 
 # Installs required dependencies
-RUN npm install
+RUN bun install --frozen-lockfile
 
 # Copies contents
 COPY . .
 
 # Stars the application
-CMD npm start
+CMD bun start
