@@ -26,5 +26,10 @@ export default async function pwnedWsHandler(id: string, password: string) {
     //     .filter(({ filter }) => filter.has(password))
     //     .map(({ file }) => file)
 
-    execPipeAndBroadcast(id, password)
+    execPipeAndBroadcast(id, password).catch(error => {
+        broadcast(id, 'update', {
+            error: error instanceof Error ? error.message : String(error)
+        })
+        broadcast(id, 'update', { done: true }, true)
+    })
 }

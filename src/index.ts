@@ -5,6 +5,7 @@ import getIndex from './handlers/index/get.ts'
 import websocketPlugin from '@fastify/websocket'
 // import buildBloomPerFile from '#utils/buildBloom.ts'
 import ws from './plugins/ws.ts'
+import { getPasswordIndexStatus } from '#utils/passwordIndex.ts'
 
 const fastify = Fastify({
     logger: true
@@ -33,8 +34,10 @@ async function start() {
 
 async function main() {
     // buildBloomPerFile().catch(console.error)
+    void getPasswordIndexStatus()
+        .then(status => fastify.log.info({ passwordIndex: status }, 'Password index warmed'))
+        .catch(error => fastify.log.error(error, 'Failed to warm password index'))
     start()
 }
 
 main()
-

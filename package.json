@@ -7,7 +7,9 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "check:index": "node scripts/validate-password-lookups.mjs",
+    "repair:index": "node scripts/rebuild-password-lookups.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

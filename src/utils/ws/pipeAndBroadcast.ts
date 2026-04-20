@@ -1,13 +1,21 @@
 import { spawn } from 'child_process'
 import broadcast, { clientsMap } from './broadcast.ts'
+import { findCandidateFiles } from '#utils/passwordIndex.ts'
 
-export default function execPipeAndBroadcast(id: string, password: string): void {
+export default async function execPipeAndBroadcast(id: string, password: string): Promise<void> {
+    const candidates = await findCandidateFiles(password)
+
+    if (!candidates.length) {
+        broadcast(id, 'update', { debug: 'No candidate shard matched the password range.' })
+        broadcast(id, 'update', { done: true }, true)
+        clientsMap.delete(id)
+        return
+    }
+
     let childLeftover = ''
-    let findLeftover = ''
-    let remaining = 2
 
-    function parseLine(data: Buffer, isFind: boolean) {
-        let leftover = isFind ? findLeftover : childLeftover
+    function parseLine(data: Buffer) {
+        let leftover = childLeftover
         const text = leftover + data.toString()
         const lines = text.split('\n')
         leftover = lines.pop() || ''
@@ -30,63 +38,41 @@ export default function execPipeAndBroadcast(id: string, password: string): void
             }
         })
 
-        if (isFind) {
-            findLeftover = leftover
-        } else {
-            childLeftover = leftover
-        }
+        childLeftover = leftover
     }
 
-    const child = spawn('rg', ['-a', '-x', '-n', '--max-depth', '1', '--', password], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        cwd: `${process.cwd()}/passwords`
+    const child = spawn('rg', ['-a', '-x', '-n', '-H', '--', password, ...candidates.map(candidate => candidate.fullPath)], {
+        stdio: ['ignore', 'pipe', 'pipe']
     })
 
-    const findChild = spawn('./find_all.sh', [password], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        cwd: `${process.cwd()}/passwords`
+    broadcast(id, 'update', {
+        debug: `spawned rg pid=${child.pid} across ${candidates.length} shard${candidates.length === 1 ? '' : 's'}`,
+        candidates: candidates.map(candidate => ({
+            dataset: candidate.dataset,
+            file: candidate.file
+        }))
     })
 
-    broadcast(id, 'update', { debug: `spawned rg pid=${child.pid}, find_all pid=${findChild.pid}` })
-
-    child.stdout.on('data', (data: Buffer) => parseLine(data, false))
-    findChild.stdout.on('data', (data: Buffer) => parseLine(data, true))
+    child.stdout.on('data', (data: Buffer) => parseLine(data))
 
     child.stderr.on('data', (err: Buffer) => {
         broadcast(id, 'update', { error: `rg stderr: ${err.toString()}` })
-    })
-
-    findChild.stderr.on('data', (err: Buffer) => {
-        broadcast(id, 'update', { error: `find_all stderr: ${err.toString()}` })
     })
 
     child.on('error', (err) => {
         broadcast(id, 'update', { error: `rg spawn error: ${err.message}` })
     })
 
-    findChild.on('error', (err) => {
-        broadcast(id, 'update', { error: `find_all spawn error: ${err.message}` })
-    })
-
-    function onChildClose(code: number | null, signal: NodeJS.Signals | null) {
-        remaining -= 1
-
-        if (remaining <= 0) {
-            if (childLeftover) {
-                parseLine(Buffer.from('\n'), false)
-            }
-
-            if (findLeftover) {
-                parseLine(Buffer.from('\n'), true)
-            }
-
-            broadcast(id, 'update', { done: true }, true)
-            clientsMap.delete(id)
-        } else {
-            broadcast(id, 'update', { debug: `one process closed (remaining=${remaining}) code=${code} signal=${signal}` })
+    child.on('close', (code, signal) => {
+        if (childLeftover) {
+            parseLine(Buffer.from('\n'))
         }
-    }
 
-    child.on('close', (code, signal) => onChildClose(code, signal))
-    findChild.on('close', (code, signal) => onChildClose(code, signal))
+        broadcast(id, 'update', {
+            done: true,
+            exitCode: code,
+            signal
+        }, true)
+        clientsMap.delete(id)
+    })
 }
