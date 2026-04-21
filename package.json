@@ -1,6 +1,6 @@
 {
   "name": "pwned",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Pwned API for hanasand.com",
   "license": "ISC",
   "author": "Eirik Hanasand",
@@ -8,9 +8,9 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "bun src/index.ts",
-    "check:index": "node scripts/validate-password-lookups.mjs",
-    "repair:index": "node scripts/rebuild-password-lookups.mjs",
-    "smoke:ws": "node scripts/ws-smoke.mjs"
+    "check:index": "bun scripts/validate-password-lookups.mjs",
+    "repair:index": "bun scripts/rebuild-password-lookups.mjs",
+    "smoke:ws": "bun scripts/ws-smoke.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

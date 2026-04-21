@@ -7,8 +7,8 @@ WORKDIR /usr/src/app
 # Installs packages
 RUN apk add ripgrep bash
 
-# Copies package.json and package-lock.json to the Docker environment
-COPY package.json package-lock.json ./
+# Copies package.json and bun.lock to the Docker environment
+COPY package.json bun.lock ./
 
 # Installs required dependencies
 RUN bun install --frozen-lockfile
