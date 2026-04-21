@@ -68,12 +68,32 @@ async function main() {
             errors.push(error instanceof Error ? error.message : String(error))
             continue
         }
+
+        const datasetFiles = await fs.readdir(datasetDir)
+        const sortedCandidates = await Promise.all(datasetFiles
+            .filter(file => file.endsWith('.txt') && file.includes('_sorted'))
+            .map(async file => {
+                const stat = await fs.stat(path.join(datasetDir, file))
+                return { file, sizeBytes: stat.size }
+            }))
+        const sortedMaster = sortedCandidates.sort((left, right) => right.sizeBytes - left.sizeBytes)[0] || null
+
         let sorted = true
         for (let index = 1; index < entries.length; index += 1) {
             if (comparePasswords(entries[index - 1].start, entries[index].start) > 0) {
                 sorted = false
                 warnings.push(`${lookupPath} is not sorted at entry ${index + 1}`)
                 break
+            }
+        }
+
+        let shardBytes = 0
+        for (const entry of entries) {
+            try {
+                const stat = await fs.stat(path.join(datasetDir, entry.file))
+                shardBytes += stat.size
+            } catch (error) {
+                errors.push(error instanceof Error ? error.message : String(error))
             }
         }
 
@@ -102,11 +122,17 @@ async function main() {
             }
         }
 
+        if (sortedMaster && shardBytes < sortedMaster.sizeBytes) {
+            warnings.push(`${dataset}: lookup shards cover ${shardBytes} bytes but sorted master ${sortedMaster.file} is ${sortedMaster.sizeBytes} bytes`)
+        }
+
         results.push({
             dataset,
             shards: entries.length,
             sampledFiles: samples.size,
-            sorted
+            sorted,
+            shardBytes,
+            sortedMaster
         })
     }
 

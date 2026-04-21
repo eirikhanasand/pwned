@@ -6,6 +6,7 @@ import websocketPlugin from '@fastify/websocket'
 // import buildBloomPerFile from '#utils/buildBloom.ts'
 import ws from './plugins/ws.ts'
 import { getPasswordIndexStatus } from '#utils/passwordIndex.ts'
+import { startPasswordAuditScheduler } from '#utils/passwordAudit.ts'
 
 const fastify = Fastify({
     logger: true
@@ -37,6 +38,7 @@ async function main() {
     void getPasswordIndexStatus()
         .then(status => fastify.log.info({ passwordIndex: status }, 'Password index warmed'))
         .catch(error => fastify.log.error(error, 'Failed to warm password index'))
+    startPasswordAuditScheduler(fastify.log)
     start()
 }
 

@@ -9,7 +9,8 @@
   "scripts": {
     "start": "bun src/index.ts",
     "check:index": "node scripts/validate-password-lookups.mjs",
-    "repair:index": "node scripts/rebuild-password-lookups.mjs"
+    "repair:index": "node scripts/rebuild-password-lookups.mjs",
+    "smoke:ws": "node scripts/ws-smoke.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
