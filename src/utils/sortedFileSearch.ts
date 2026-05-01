@@ -1,7 +1,10 @@
 import { open } from 'fs/promises'
 
 const CHUNK_SIZE = 64 * 1024
-const DEFAULT_MATCH_LIMIT = 20
+
+export type SortedFileMatch = {
+    offset: number
+}
 
 function comparePasswordBytes(left: Buffer, right: Buffer): number {
     return Buffer.compare(left, right)
@@ -53,58 +56,6 @@ export async function readFileBoundaries(filePath: string): Promise<{ firstLine:
     } finally {
         await handle.close()
     }
-}
-
-async function readLineAtOrAfter(handle: Awaited<ReturnType<typeof open>>, offset: number, sizeBytes: number): Promise<{ line: Buffer, offset: number } | null> {
-    if (offset >= sizeBytes) {
-        return null
-    }
-
-    let cursor = offset
-    let buffer = Buffer.alloc(0)
-
-    while (cursor < sizeBytes) {
-        const chunk = await readChunk(handle, cursor, Math.min(sizeBytes, cursor + CHUNK_SIZE))
-        if (!chunk.length) {
-            break
-        }
-
-        buffer = Buffer.concat([buffer, chunk])
-        const newlineIndex = buffer.indexOf(0x0a)
-
-        if (offset === 0) {
-            if (newlineIndex === -1) {
-                cursor += chunk.byteLength
-                continue
-            }
-
-            return {
-                line: trimCarriageReturn(buffer.subarray(0, newlineIndex)),
-                offset: 0
-            }
-        }
-
-        if (newlineIndex === -1) {
-            cursor += chunk.byteLength
-            continue
-        }
-
-        const lineStartOffset = cursor - (buffer.byteLength - chunk.byteLength) + newlineIndex + 1
-        const remaining = buffer.subarray(newlineIndex + 1)
-        const nextNewline = remaining.indexOf(0x0a)
-
-        if (nextNewline === -1) {
-            cursor += chunk.byteLength
-            continue
-        }
-
-        return {
-            line: trimCarriageReturn(remaining.subarray(0, nextNewline)),
-            offset: lineStartOffset
-        }
-    }
-
-    return null
 }
 
 async function readLineStartingAt(handle: Awaited<ReturnType<typeof open>>, offset: number, sizeBytes: number): Promise<{ line: Buffer, offset: number } | null> {
@@ -193,15 +144,7 @@ async function findLowerBound(handle: Awaited<ReturnType<typeof open>>, query: B
     return candidateOffset
 }
 
-function lineStartsWith(line: Buffer, query: Buffer): boolean {
-    return line.byteLength >= query.byteLength && line.subarray(0, query.byteLength).equals(query)
-}
-
-export async function searchSortedFilePrefixMatches(
-    filePath: string,
-    query: string,
-    limit = DEFAULT_MATCH_LIMIT
-): Promise<string[]> {
+export async function searchSortedFileExactMatch(filePath: string, query: string): Promise<SortedFileMatch | null> {
     const handle = await open(filePath, 'r')
     const queryBytes = Buffer.from(query, 'utf8')
 
@@ -209,29 +152,22 @@ export async function searchSortedFilePrefixMatches(
         const stat = await handle.stat()
         const startOffset = await findLowerBound(handle, queryBytes, stat.size)
         if (startOffset === null) {
-            return []
+            return null
         }
 
-        const matches: string[] = []
-        let nextOffset = startOffset
-
-        while (matches.length < limit) {
-            const lineResult = await readLineStartingAt(handle, nextOffset, stat.size)
-            if (!lineResult || !lineStartsWith(lineResult.line, queryBytes)) {
-                break
-            }
-
-            matches.push(lineResult.line.toString('utf8'))
-            nextOffset = lineResult.offset + lineResult.line.byteLength + 1
+        const lineResult = await readLineStartingAt(handle, startOffset, stat.size)
+        if (!lineResult || comparePasswordBytes(lineResult.line, queryBytes) !== 0) {
+            return null
         }
 
-        return matches
+        return {
+            offset: lineResult.offset
+        }
     } finally {
         await handle.close()
     }
 }
 
 export async function searchSortedFileExact(filePath: string, query: string): Promise<boolean> {
-    const matches = await searchSortedFilePrefixMatches(filePath, query, 1)
-    return matches.some(match => match === query)
+    return (await searchSortedFileExactMatch(filePath, query)) !== null
 }

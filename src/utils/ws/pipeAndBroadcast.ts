@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 import broadcast, { clientsMap } from './broadcast.ts'
 import { findCandidateEntries, type PasswordSourceEntry } from '#utils/passwordIndex.ts'
-import { searchSortedFilePrefixMatches } from '#utils/sortedFileSearch.ts'
+import { searchSortedFileExactMatch } from '#utils/sortedFileSearch.ts'
 
 export default async function execPipeAndBroadcast(id: string, password: string): Promise<void> {
     const candidates = await findCandidateEntries(password)
@@ -18,14 +18,13 @@ export default async function execPipeAndBroadcast(id: string, password: string)
     const seenFiles = new Set<string>()
 
     for (const candidate of sortedCandidates) {
-        const matches = await searchSortedFilePrefixMatches(candidate.fullPath, password)
-
-        for (const match of matches) {
+        const match = await searchSortedFileExactMatch(candidate.fullPath, password)
+        if (match) {
             seenFiles.add(candidate.fullPath)
             broadcast(id, 'update', {
                 ok: false,
                 file: candidate.fullPath,
-                match,
+                offset: match.offset,
                 source: 'sorted'
             })
         }
@@ -49,9 +48,9 @@ export default async function execPipeAndBroadcast(id: string, password: string)
             const line = rawLine.trim()
             if (!line) return
 
-            const match = line.match(/^(.+):(\d+)(?::(.*))?$/)
+            const match = line.match(/^(.+):(\d+)(?::.*)?$/)
             if (match) {
-                const [, file, lineNum, matchText] = match
+                const [, file, lineNum] = match
                 if (seenFiles.has(file)) {
                     return
                 }
@@ -59,8 +58,7 @@ export default async function execPipeAndBroadcast(id: string, password: string)
                 broadcast(id, 'update', {
                     ok: false,
                     file,
-                    line: parseInt(lineNum, 10),
-                    ...(matchText ? { match: matchText } : {})
+                    line: parseInt(lineNum, 10)
                 })
             } else {
                 broadcast(id, 'update', { debug: line })
@@ -70,7 +68,7 @@ export default async function execPipeAndBroadcast(id: string, password: string)
         childLeftover = leftover
     }
 
-    const child = spawn('rg', ['-a', '-F', '-n', '-H', '--', password, ...lookupCandidates.map(candidate => candidate.fullPath)], {
+    const child = spawn('rg', ['-a', '-F', '-x', '-n', '-H', '--', password, ...lookupCandidates.map(candidate => candidate.fullPath)], {
         stdio: ['ignore', 'pipe', 'pipe']
     })
 

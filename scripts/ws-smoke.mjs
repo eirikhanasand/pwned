@@ -64,6 +64,18 @@ async function runSmoke() {
         if (!match) {
             throw new Error(`Expected websocket smoke test to find all_in_one_sorted.txt, got ${JSON.stringify(messages)}`)
         }
+
+        if ('match' in match) {
+            throw new Error(`Expected sorted websocket result to omit password text, got ${JSON.stringify(match)}`)
+        }
+
+        if (typeof match.offset !== 'number') {
+            throw new Error(`Expected sorted websocket result to include byte offset, got ${JSON.stringify(match)}`)
+        }
+
+        if (messages.some(message => message.match === 'Eirik2002123')) {
+            throw new Error(`Expected exact matching only, got prefix result ${JSON.stringify(messages)}`)
+        }
     } finally {
         child.kill('SIGTERM')
         await delay(200)
