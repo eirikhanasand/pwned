@@ -7,11 +7,7 @@ import broadcast from './broadcast.ts'
 
 export default async function pwnedWsHandler(id: string, password: string) {
     const count = await checkPwnedPassword(password)
-    if (!count) {
-        return broadcast(id, 'update', { ok: true })
-    }
-
-    broadcast(id, 'update', { ok: false, count })
+    broadcast(id, 'update', count > 0 ? { ok: false, count } : { ok: true, count: 0 })
 
     // const BLOOM_DIR = 'bloom'
     // const files = fs.readdirSync(BLOOM_DIR).filter(f => f.endsWith('.bloom'))

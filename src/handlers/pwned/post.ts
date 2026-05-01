@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
+import { hasLocalPassword } from '#utils/localPasswordSearch.ts'
 import checkPwnedPassword from '#utils/pwnedCheck.ts'
 
 export default async function pwnedHandler(req: FastifyRequest, res: FastifyReply) {
@@ -8,8 +9,9 @@ export default async function pwnedHandler(req: FastifyRequest, res: FastifyRepl
     }
 
     const count = await checkPwnedPassword(password)
+    const localHit = await hasLocalPassword(password)
 
-    if (count > 0) {
+    if (count > 0 || localHit) {
         return res.send({ ok: false, count })
     }
 

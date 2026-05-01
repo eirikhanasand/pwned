@@ -40,6 +40,16 @@ async function runSmoke() {
     try {
         await waitForServer()
 
+        const localOnlyResponse = await fetch(`http://127.0.0.1:${port}/api/pwned`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: 'codex-local-only-lookup-proof' })
+        })
+        const localOnlyResult = await localOnlyResponse.json()
+        if (localOnlyResult.ok !== false || localOnlyResult.count !== 0) {
+            throw new Error(`Expected local-only sorted master hit to make /pwned fail, got ${JSON.stringify(localOnlyResult)}`)
+        }
+
         const messages = await new Promise((resolve, reject) => {
             const ws = new WebSocket(wsUrl)
             const received = []
@@ -75,6 +85,30 @@ async function runSmoke() {
 
         if (messages.some(message => message.match === 'Eirik2002123')) {
             throw new Error(`Expected exact matching only, got prefix result ${JSON.stringify(messages)}`)
+        }
+
+        const localOnlyMessages = await new Promise((resolve, reject) => {
+            const ws = new WebSocket(wsUrl)
+            const received = []
+
+            ws.on('open', () => {
+                ws.send(JSON.stringify({ password: 'codex-local-only-lookup-proof' }))
+            })
+
+            ws.on('message', message => {
+                const parsed = JSON.parse(String(message))
+                received.push(parsed)
+                if (parsed.done) {
+                    ws.close()
+                    resolve(received)
+                }
+            })
+
+            ws.on('error', reject)
+        })
+
+        if (!localOnlyMessages.some(message => message.file?.endsWith('all_in_one_sorted.txt'))) {
+            throw new Error(`Expected websocket local-only search to find sorted master, got ${JSON.stringify(localOnlyMessages)}`)
         }
     } finally {
         child.kill('SIGTERM')
