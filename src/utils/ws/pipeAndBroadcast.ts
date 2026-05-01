@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 import broadcast, { clientsMap } from './broadcast.ts'
 import { findCandidateEntries, type PasswordSourceEntry } from '#utils/passwordIndex.ts'
-import { searchSortedFileExact } from '#utils/sortedFileSearch.ts'
+import { searchSortedFilePrefixMatches } from '#utils/sortedFileSearch.ts'
 
 export default async function execPipeAndBroadcast(id: string, password: string): Promise<void> {
     const candidates = await findCandidateEntries(password)
@@ -18,18 +18,17 @@ export default async function execPipeAndBroadcast(id: string, password: string)
     const seenFiles = new Set<string>()
 
     for (const candidate of sortedCandidates) {
-        const found = await searchSortedFileExact(candidate.fullPath, password)
-        if (!found) {
-            continue
-        }
+        const matches = await searchSortedFilePrefixMatches(candidate.fullPath, password)
 
-        seenFiles.add(candidate.fullPath)
-        broadcast(id, 'update', {
-            ok: false,
-            file: candidate.fullPath,
-            match: password,
-            source: 'sorted'
-        })
+        for (const match of matches) {
+            seenFiles.add(candidate.fullPath)
+            broadcast(id, 'update', {
+                ok: false,
+                file: candidate.fullPath,
+                match,
+                source: 'sorted'
+            })
+        }
     }
 
     if (!lookupCandidates.length) {
@@ -71,7 +70,7 @@ export default async function execPipeAndBroadcast(id: string, password: string)
         childLeftover = leftover
     }
 
-    const child = spawn('rg', ['-a', '-x', '-n', '-H', '--', password, ...lookupCandidates.map(candidate => candidate.fullPath)], {
+    const child = spawn('rg', ['-a', '-F', '-n', '-H', '--', password, ...lookupCandidates.map(candidate => candidate.fullPath)], {
         stdio: ['ignore', 'pipe', 'pipe']
     })
 
