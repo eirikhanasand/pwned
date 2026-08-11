@@ -21,12 +21,14 @@ export default async function execPipeAndBroadcast(id: string, password: string)
         const match = await searchSortedFileExactMatch(candidate.fullPath, password)
         if (match) {
             seenFiles.add(candidate.fullPath)
-            broadcast(id, 'update', {
-                ok: false,
-                file: candidate.fullPath,
-                offset: match.offset,
-                source: 'sorted'
-            })
+            if (typeof match.line === 'number') {
+                broadcast(id, 'update', {
+                    ok: false,
+                    file: candidate.fullPath,
+                    line: match.line,
+                    source: 'sorted'
+                })
+            }
         }
     }
 

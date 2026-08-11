@@ -79,8 +79,12 @@ async function runSmoke() {
             throw new Error(`Expected sorted websocket result to omit password text, got ${JSON.stringify(match)}`)
         }
 
-        if (typeof match.offset !== 'number') {
-            throw new Error(`Expected sorted websocket result to include byte offset, got ${JSON.stringify(match)}`)
+        if ('offset' in match) {
+            throw new Error(`Expected websocket result to omit byte offset, got ${JSON.stringify(match)}`)
+        }
+
+        if (typeof match.line !== 'number') {
+            throw new Error(`Expected sorted websocket result to include a line number, got ${JSON.stringify(match)}`)
         }
 
         if (messages.some(message => message.match === 'Eirik2002123')) {

@@ -1,9 +1,23 @@
 import { open } from 'fs/promises'
+import { readFile } from 'fs/promises'
 
 const CHUNK_SIZE = 64 * 1024
+const MAX_UNINDEXED_LINE_COUNT_BYTES = 512 * 1024 * 1024
 
 export type SortedFileMatch = {
     offset: number
+    line?: number
+}
+
+type LineIndex = {
+    version: 1
+    file: string
+    sizeBytes: number
+    checkpointEveryLines: number
+    checkpoints: Array<{
+        offset: number
+        line: number
+    }>
 }
 
 function comparePasswordBytes(left: Buffer, right: Buffer): number {
@@ -161,7 +175,8 @@ export async function searchSortedFileExactMatch(filePath: string, query: string
         }
 
         return {
-            offset: lineResult.offset
+            offset: lineResult.offset,
+            line: await resolveLineNumber(handle, filePath, lineResult.offset, stat.size)
         }
     } finally {
         await handle.close()
@@ -170,4 +185,76 @@ export async function searchSortedFileExactMatch(filePath: string, query: string
 
 export async function searchSortedFileExact(filePath: string, query: string): Promise<boolean> {
     return (await searchSortedFileExactMatch(filePath, query)) !== null
+}
+
+async function resolveLineNumber(
+    handle: Awaited<ReturnType<typeof open>>,
+    filePath: string,
+    offset: number,
+    sizeBytes: number,
+): Promise<number | undefined> {
+    const index = await readLineIndex(filePath, sizeBytes)
+    if (index) {
+        const checkpoint = findCheckpoint(index, offset)
+        return checkpoint.line + await countNewlines(handle, checkpoint.offset, offset)
+    }
+
+    if (sizeBytes > MAX_UNINDEXED_LINE_COUNT_BYTES) {
+        return undefined
+    }
+
+    return 1 + await countNewlines(handle, 0, offset)
+}
+
+async function readLineIndex(filePath: string, sizeBytes: number): Promise<LineIndex | null> {
+    try {
+        const raw = await readFile(`${filePath}.line-index.json`, 'utf8')
+        const index = JSON.parse(raw) as LineIndex
+        if (index.version !== 1 || index.file !== filePath || index.sizeBytes !== sizeBytes || !Array.isArray(index.checkpoints)) {
+            return null
+        }
+
+        return index
+    } catch {
+        return null
+    }
+}
+
+function findCheckpoint(index: LineIndex, offset: number) {
+    let low = 0
+    let high = index.checkpoints.length - 1
+    let best = index.checkpoints[0] || { offset: 0, line: 1 }
+
+    while (low <= high) {
+        const mid = Math.floor((low + high) / 2)
+        const checkpoint = index.checkpoints[mid]
+        if (!checkpoint) break
+
+        if (checkpoint.offset <= offset) {
+            best = checkpoint
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+
+    return best
+}
+
+async function countNewlines(handle: Awaited<ReturnType<typeof open>>, start: number, end: number): Promise<number> {
+    let cursor = start
+    let count = 0
+
+    while (cursor < end) {
+        const chunk = await readChunk(handle, cursor, Math.min(end, cursor + CHUNK_SIZE))
+        if (!chunk.length) break
+
+        for (let index = 0; index < chunk.length; index += 1) {
+            if (chunk[index] === 0x0a) count += 1
+        }
+
+        cursor += chunk.length
+    }
+
+    return count
 }
