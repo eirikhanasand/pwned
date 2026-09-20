@@ -33,4 +33,13 @@ for index, group in enumerate(duplicates, 1):
     lines.extend(f"- `{name(file)}`\n" for file in group['files'])
     lines.append('\n')
 (folder / 'duplicates.md').write_text(''.join(lines))
+if summary.get('sourceInventoryNormalized') and (folder / 'cleanup.json').exists():
+    cleanup = json.loads((folder / 'cleanup.json').read_text())
+    lines = ['# Inventory cleanup\n\n', f"Removed {len(cleanup['usernameFilesRemoved'])} username-only files from the active inventory. Merged {len(cleanup['mergedFiles'])} single-entry password files into `small.txt` ({cleanup['smallLines']} lines), preserving duplicate entries.\n\n", f"Recoverable originals: `{cleanup['backupDirectory']}`.\n\n", '## Removed username files\n\n']
+    lines.extend(f"- `{name(file)}`\n" for file in cleanup['usernameFilesRemoved'])
+    lines.append('\n## Password files merged into small.txt\n\n| Original file | New line in small.txt |\n|---|---:|\n')
+    lines.extend(f"| `{name(row['file'])}` | {row['smallLine']} |\n" for row in cleanup['mergedFiles'])
+    lines.append('\n## Mixed lists left unchanged\n\n')
+    lines.extend(f"- `{name(file)}`\n" for file in cleanup['mixedListsPreserved'])
+    (folder / 'cleanup.md').write_text(''.join(lines))
 print(f"Verified report snapshot: {len(converted):,} converted, {len(remaining):,} remaining, {len(duplicates):,} duplicate groups; all converted line counts match.")

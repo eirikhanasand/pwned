@@ -49,3 +49,20 @@ memory is released on exit; no global cache-flush commands are used.
 The generated inventory is not yet a prefix-search index. Do not point the
 legacy plaintext/binary-search service at it: SHA-1 records are deliberately
 kept in original line order, not hash-sorted order.
+
+## Inventory cleanup
+
+Pause the converter before running `consolidate-inventory.py`. Preview first,
+then use `--apply` to remove username-only files and merge single-record
+password lists into `small.txt`. Duplicates are preserved. Mixed username/password
+lists and identified hash test vectors are left unchanged. Original sources,
+obsolete hashes and previous metadata are moved/copied into the specified
+recoverable backup, and `cleanup.json` maps each original file to its new line.
+Mount the source, report and backup directories through one common parent
+bind mount: separate bind mounts prevent the atomic rename used for backups,
+even when their host directories share a device. Never overwrite existing
+`small.txt` or reuse a previous backup directory.
+
+The converter now handles SIGINT/SIGTERM by finishing the current file and
+pausing at a file boundary. Resume the existing container after cleanup with
+the same resource limits. Its reports reflect the revised inventory.
