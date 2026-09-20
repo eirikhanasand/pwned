@@ -18,7 +18,8 @@ def name(value):
 
 
 header = f"Snapshot: {summary['updatedAt']}\n\n"
-lines = ['# Converted hash files\n\n', header, 'Original plaintext files are unchanged. These are verified hash copies in `/home/hanasand/pwned/hash-inventory/files`.\n\n', '| Original file | Lines before | Lines after | Duplicate of |\n|---|---:|---:|---|\n']
+source_note = 'Username-only files were removed and single-entry password files were merged into small.txt, with recoverable originals.' if summary.get('sourceInventoryNormalized') else 'Original plaintext files are unchanged.'
+lines = ['# Converted hash files\n\n', header, source_note + ' These are verified hash copies in `/home/hanasand/pwned/hash-inventory/files`.\n\n', '| Original file | Lines before | Lines after | Duplicate of |\n|---|---:|---:|---|\n']
 for row in converted:
     lines.append(f"| `{name(row['file'])}` | {row['source']['lines']:,} | {row['output']['lines']:,} | {name(row.get('duplicateOf', ''))} |\n")
 (folder / 'converted.md').write_text(''.join(lines))

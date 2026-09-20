@@ -5,4 +5,5 @@ bloom
 .DS_Store
 package-lock.json
 hash-inventory/
+inventory-cleanup-backups/
 __pycache__/

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -90,6 +91,14 @@ def run(args):
             groups.setdefault((item['source']['bytes'], item['source']['sha256']), []).append(item['file'])
     current = None
     last_report = 0
+    pause_requested = False
+
+    def pause(_signal, _frame):
+        nonlocal pause_requested
+        pause_requested = True
+
+    signal.signal(signal.SIGINT, pause)
+    signal.signal(signal.SIGTERM, pause)
 
     def report(state, force=False):
         nonlocal last_report
@@ -106,7 +115,8 @@ def run(args):
             'updatedAt': stamp(), 'state': state, 'currentFile': current,
             'source': str(source), 'hashRoot': str(destination / 'files'),
             'memoryLimitBytes': args.memory_limit, 'diskReserveBytes': args.reserve,
-            'originalsModified': False, 'scannedFiles': len(records),
+            'originalsModified': bool(plan.get('normalization')),
+            'sourceInventoryNormalized': bool(plan.get('normalization')), 'scannedFiles': len(records),
             'totalFiles': len(plan['files']), 'convertedFiles': len(converted),
             'remainingFiles': len(remaining), 'duplicateGroups': len(duplicates),
             'inputLinesConverted': sum(v['source']['lines'] for v in converted),
@@ -135,17 +145,21 @@ def run(args):
     try:
         with journal_path.open('a') as journal:
             for item in plan['files']:
+                if pause_requested:
+                    current = None
+                    report('paused', True)
+                    return
                 current = item['file']
                 original = source / current
                 output = destination / 'files' / (current + '.sha1')
                 prior = records.get(current)
                 if snapshot(original) != item['snapshot']:
                     raise RuntimeError('source inventory changed: ' + current)
+                report('running')
                 if prior and prior['status'] == 'converted':
                     if not output.is_file() or worker('scan', output) != prior['output']:
                         raise RuntimeError('previous output failed verification: ' + current)
                     continue
-                report('running')
                 scanned = prior.get('source') if prior else None
                 scanned = scanned or worker('scan', original)
                 if snapshot(original) != item['snapshot']:
