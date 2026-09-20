@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+from finalize_inventory import finalize
 
 
 def stamp():
@@ -115,12 +116,17 @@ def run(args):
             'updatedAt': stamp(), 'state': state, 'currentFile': current,
             'source': str(source), 'hashRoot': str(destination / 'files'),
             'memoryLimitBytes': args.memory_limit, 'diskReserveBytes': args.reserve,
-            'originalsModified': bool(plan.get('normalization')),
+            'originalsModified': bool(plan.get('normalization')) or any(v.get('originalDeleted') for v in converted),
             'sourceInventoryNormalized': bool(plan.get('normalization')), 'scannedFiles': len(records),
             'totalFiles': len(plan['files']), 'convertedFiles': len(converted),
             'remainingFiles': len(remaining), 'duplicateGroups': len(duplicates),
             'inputLinesConverted': sum(v['source']['lines'] for v in converted),
-            'outputLinesVerified': sum(v['output']['lines'] for v in converted),
+            'outputLinesVerified': sum(v.get('rawOutput', v['output'])['lines'] for v in converted),
+            'storedHashLines': sum(v['output']['lines'] for v in converted),
+            'deduplicatedFiles': sum(bool(v.get('deduplicated')) for v in converted),
+            'duplicateHashesRemoved': sum(v.get('duplicateHashesRemoved', 0) for v in converted),
+            'originalFilesDeleted': sum(bool(v.get('originalDeleted')) for v in converted),
+            'finalizationBlockedFiles': sum(bool(v.get('finalizationBlocked')) for v in converted),
             'freeDiskBytes': shutil.disk_usage(destination).free,
             'duplicatesAuditComplete': len(records) == len(plan['files']) and all('source' in r for r in records.values()),
         }
@@ -144,6 +150,25 @@ def run(args):
 
     try:
         with journal_path.open('a') as journal:
+            def record_result(result):
+                journal.write(json.dumps(result) + '\n')
+                journal.flush()
+                os.fsync(journal.fileno())
+                records[result['file']] = result
+
+            def finish(item, result):
+                if not args.deduplicate:
+                    return
+                try:
+                    finalized = finalize(item, result, source, destination, worker, args.reserve,
+                                         args.memory_limit * 4 // 5, args.delete_verified_originals)
+                    finalized.pop('finalizationBlocked', None)
+                    record_result(finalized)
+                except RuntimeError as error:
+                    if not any(reason in str(error) for reason in ('disk reserve reached', 'memory budget reached')):
+                        raise
+                    record_result({**result, 'finalizationBlocked': str(error)})
+
             for item in plan['files']:
                 if pause_requested:
                     current = None
@@ -153,9 +178,16 @@ def run(args):
                 original = source / current
                 output = destination / 'files' / (current + '.sha1')
                 prior = records.get(current)
+                report('running')
+                receipt = destination / 'finalization' / (current + '.json')
+                if prior and prior['status'] == 'converted' and (args.deduplicate or receipt.exists()):
+                    if not args.deduplicate:
+                        raise RuntimeError('resume finalized inventory with --deduplicate')
+                    finish(item, prior)
+                    report('running')
+                    continue
                 if snapshot(original) != item['snapshot']:
                     raise RuntimeError('source inventory changed: ' + current)
-                report('running')
                 if prior and prior['status'] == 'converted':
                     if not output.is_file() or worker('scan', output) != prior['output']:
                         raise RuntimeError('previous output failed verification: ' + current)
@@ -167,12 +199,12 @@ def run(args):
                 key = (scanned['bytes'], scanned['sha256'])
                 members = groups.setdefault(key, [])
                 if current not in members:
-                    if members and not identical(original, source / members[0]):
+                    if members and (source / members[0]).exists() and not identical(original, source / members[0]):
                         raise RuntimeError('checksum collision or changed duplicate: ' + current)
                     members.append(current)
                 expected = scanned['lines'] * 41 - (1 if scanned['lines'] and not scanned['terminated'] else 0)
                 result = {'file': current, 'status': 'pending', 'source': scanned, 'expectedOutputBytes': expected}
-                canonical = next((records[name] for name in members if name != current and records.get(name, {}).get('status') == 'converted'), None)
+                canonical = next((records[name] for name in members if name != current and records.get(name, {}).get('status') == 'converted' and not records[name].get('deduplicated')), None)
                 output.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
                 partial = output.with_suffix(output.suffix + '.partial')
                 if output.exists():
@@ -209,13 +241,12 @@ def run(args):
                     os.fsync(directory)
                     os.close(directory)
                     result.update(status='converted', outputPath=str(output.relative_to(destination)), verifiedAt=stamp())
-                journal.write(json.dumps(result) + '\n')
-                journal.flush()
-                os.fsync(journal.fileno())
-                records[current] = result
+                record_result(result)
+                if result['status'] == 'converted':
+                    finish(item, result)
                 report('running')
             current = None
-            state = 'complete' if all(v['status'] == 'converted' for v in records.values()) else 'blocked_space'
+            state = 'blocked_resources' if any(v.get('finalizationBlocked') for v in records.values()) else ('complete' if all(v['status'] == 'converted' for v in records.values()) else 'blocked_space')
             report(state, True)
     except BaseException:
         report('failed', True)
@@ -230,7 +261,15 @@ if __name__ == '__main__':
     parser.add_argument('--reserve', type=int, default=150_000_000_000)
     parser.add_argument('--memory-limit', type=int, default=500_000_000_000)
     parser.add_argument('--threads', type=int, default=16)
+    parser.add_argument('--deduplicate', action='store_true')
+    parser.add_argument('--delete-verified-originals', action='store_true')
     options = parser.parse_args()
+    if options.delete_verified_originals and not options.deduplicate:
+        parser.error('source removal requires --deduplicate')
+    # Legacy lookup manifests still depend on source files. Migrating/retiring that
+    # consumer must precede deletion; never silently break it during conversion.
+    if options.delete_verified_originals and any(options.source.rglob('lookup.txt')):
+        parser.error('legacy lookup manifests remain; migrate or retire that consumer before source removal')
     if options.reserve < 0 or not 1 <= options.threads <= 96:
         parser.error('invalid disk reserve or thread count')
     # The launcher owns enforcement; the report records the verified cgroup cap.

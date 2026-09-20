@@ -10,7 +10,8 @@ assert len(converted) == summary['convertedFiles']
 assert len(remaining) == summary['remainingFiles']
 assert len(duplicates) == summary['duplicateGroups']
 assert sum(row['source']['lines'] for row in converted) == summary['inputLinesConverted']
-assert all(row['source']['lines'] == row['output']['lines'] and row['source']['newlines'] == row['output']['newlines'] for row in converted)
+assert all(row['source']['lines'] == row.get('rawOutput', row['output'])['lines'] and row['source']['newlines'] == row.get('rawOutput', row['output'])['newlines'] for row in converted)
+assert all(not row.get('deduplicated') or (row['lineMap']['bytes'] == row['source']['lines'] * 8 and row['output']['lines'] + row['duplicateHashesRemoved'] == row['source']['lines']) for row in converted)
 
 
 def name(value):
@@ -19,15 +20,17 @@ def name(value):
 
 header = f"Snapshot: {summary['updatedAt']}\n\n"
 source_note = 'Username-only files were removed and short inventory files were merged into small.txt, with recoverable originals.' if summary.get('sourceInventoryNormalized') else 'Original plaintext files are unchanged.'
-lines = ['# Converted hash files\n\n', header, source_note + ' These are verified hash copies in `/home/hanasand/pwned/hash-inventory/files`.\n\n', '| Original file | Lines before | Lines after | Duplicate of |\n|---|---:|---:|---|\n']
+if summary.get('originalFilesDeleted'):
+    source_note += f" {summary['originalFilesDeleted']:,} original plaintext files were permanently removed after verification; hashes cannot reconstruct their plaintext."
+lines = ['# Converted hash files\n\n', header, source_note + ' These are verified hash files in `/home/hanasand/pwned/hash-inventory/files`. Full hash counts are checked before deduplication; original-line maps preserve every occurrence.\n\n', '| Original file | Original lines | Verified before dedupe | Stored hashes | Repeats removed | Original deleted | Finalization blocker |\n|---|---:|---:|---:|---:|---|---|\n']
 for row in converted:
-    lines.append(f"| `{name(row['file'])}` | {row['source']['lines']:,} | {row['output']['lines']:,} | {name(row.get('duplicateOf', ''))} |\n")
+    lines.append(f"| `{name(row['file'])}` | {row['source']['lines']:,} | {row.get('rawOutput', row['output'])['lines']:,} | {row['output']['lines']:,} | {row.get('duplicateHashesRemoved', 0):,} | {'Yes' if row.get('originalDeleted') else 'No'} | {name(row.get('finalizationBlocked', ''))} |\n")
 (folder / 'converted.md').write_text(''.join(lines))
 lines = ['# Files remaining\n\n', header, '| File | Status | Lines (if scanned) | Required hash bytes (if known) |\n|---|---|---:|---:|\n']
 for row in remaining:
     lines.append(f"| `{name(row['file'])}` | {row['status']} | {row.get('source', {}).get('lines', '—')} | {row.get('expectedOutputBytes', '—')} |\n")
 (folder / 'remaining.md').write_text(''.join(lines))
-lines = ['# Identical source files\n\n', header, 'Files in each group were verified byte-for-byte identical. No originals were deleted. This list is partial while the scan is running; it covers inventory text files, not excluded archives or metadata.\n\n']
+lines = ['# Matching source files\n\n', header, 'Groups share source byte counts and SHA-256 checksums. Byte-for-byte comparison is also performed when both originals remain available. This list is partial while the scan is running; it covers inventory text files, not excluded archives or metadata. See converted.md for original-file deletion status.\n\n']
 for index, group in enumerate(duplicates, 1):
     lines.append(f"## Group {index} — {group['bytesEach']:,} bytes per file\n\n")
     lines.extend(f"- `{name(file)}`\n" for file in group['files'])
@@ -47,4 +50,4 @@ if summary.get('sourceInventoryNormalized') and (folder / 'cleanup.json').exists
     lines.append('\n## Mixed lists left unchanged\n\n')
     lines.extend(f"- `{name(file)}`\n" for file in cleanup['mixedListsPreserved'])
     (folder / 'cleanup.md').write_text(''.join(lines))
-print(f"Verified report snapshot: {len(converted):,} converted, {len(remaining):,} remaining, {len(duplicates):,} duplicate groups; all converted line counts match.")
+print(f"Verified report snapshot: {len(converted):,} converted, {len(remaining):,} remaining, {len(duplicates):,} duplicate groups; all pre-deduplication line counts match; {summary.get('deduplicatedFiles', 0):,} files deduplicated, {summary.get('originalFilesDeleted', 0):,} originals deleted.")

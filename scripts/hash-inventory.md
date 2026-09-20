@@ -78,3 +78,40 @@ the cleanup transaction. Repeating a completed consolidation is a no-op error.
 The converter now handles SIGINT/SIGTERM by finishing the current file and
 pausing at a file boundary. Resume the existing container after cleanup with
 the same resource limits. Its reports reflect the revised inventory.
+
+## Verified deduplication and source removal (explicit opt-in)
+
+The defaults above retain plaintext and hash duplicates. `--deduplicate` adds a
+post-conversion step, including for already converted files:
+
+1. Recheck the original checksum and full saved hash file. The original and
+   **pre-deduplication** hash counts must match (both logical lines and LF counts).
+2. Sort hashes and remove repeats within that file. Reread the saved unique
+   hashes and verify every original record against its mapped unique hash.
+3. Publish the unique `.sha1` and `.sha1.lines` sidecar atomically per file, using
+   a durable finalization receipt to recover interruptions between publications.
+4. Only with `--delete-verified-originals`, recheck the unchanged original and
+   permanently unlink that exact plaintext path, after both outputs are durable.
+
+The sidecar has one little-endian unsigned 64-bit integer per original logical
+line, giving its one-based line in the sorted unique hash file. Repeated hashes
+therefore keep their original occurrence locations. For `small.txt`, combine
+this map with `cleanup.json` to recover the original file/line references.
+The map is binary, not a hash list; never treat its LF count as a record count.
+
+`rawOutput` records the verified full hash counts/checksum; `output` records the
+unique result. Reports separately show stored hashes, removed repeats,
+deduplicated files, original files deleted, and resource blockers. Existing
+backup directories are untouched. Hashes and maps cannot recover plaintext.
+
+Source removal requires a writable source mount and is refused while legacy
+`lookup.txt` manifests remain: migrate or retire the dependent plaintext lookup
+first. Do not remove manifests simply to bypass this safeguard. Deduplication
+without deletion works with a read-only source mount and does not disrupt it.
+Never run a second converter against the same inventory. Once finalization has
+started, resume with `--deduplicate`; retain receipts and maps with the hashes.
+
+The native worker sorts in RAM within a conservative budget below the container
+cap. It checks space for both staged outputs above the existing disk reserve.
+If either budget is insufficient, retain the original and full hash file and
+report a finalization blocker; do not drop provenance or lower the reserve.

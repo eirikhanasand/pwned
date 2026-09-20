@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <numeric>
 #include <omp.h>
 
 struct File {
@@ -85,12 +86,100 @@ void space(int fd, uint64_t reserve, uint64_t needed) {
         throw std::runtime_error("disk reserve reached");
 }
 
+void writeAll(int fd, const unsigned char* data, size_t length) {
+    while (length) {
+        ssize_t n = write(fd, data, length);
+        if (n <= 0) throw std::runtime_error("output write failed");
+        data += n;
+        length -= n;
+    }
+}
+
+// Fixed-width input makes sorting row indexes inexpensive. Keep an original-line
+// -> unique-hash-line map so deduplication does not discard occurrence provenance.
+void deduplicate(File& input, const Summary& source, char** argv) {
+    const uint64_t reserve = std::stoull(argv[5]), memory = std::stoull(argv[6]);
+    if (source.bytes != source.lines * 41 - (source.lines && !source.terminated ? 1 : 0))
+        throw std::runtime_error("invalid hash record width");
+    // Include mapped inputs/outputs plus both index arrays and generous overhead.
+    if (source.lines > (memory > 67108864 ? (memory - 67108864) / 106 : 0))
+        throw std::runtime_error("deduplication memory budget reached");
+    for (uint64_t i = 0; i < source.lines; ++i) {
+        for (size_t j = 0; j < 40; ++j) {
+            unsigned char c = input.data[i * 41 + j];
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+                throw std::runtime_error("invalid uppercase SHA-1 record");
+        }
+        if ((i + 1 < source.lines || source.terminated) && input.data[i * 41 + 40] != '\n')
+            throw std::runtime_error("invalid hash separator");
+    }
+    std::vector<uint64_t> indexes(source.lines), mapping(source.lines);
+    std::iota(indexes.begin(), indexes.end(), 0);
+    std::sort(indexes.begin(), indexes.end(), [&](uint64_t a, uint64_t b) {
+        int order = memcmp(input.data + a * 41, input.data + b * 41, 40);
+        return order ? order < 0 : a < b;
+    });
+    uint64_t unique = 0, previous = 0;
+    for (uint64_t index : indexes) {
+        if (!unique || memcmp(input.data + index * 41, input.data + previous * 41, 40)) ++unique;
+        mapping[index] = unique;
+        previous = index;
+    }
+    int out = open(argv[3], O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (out < 0) throw std::runtime_error("deduplicated output exists or cannot be created");
+    space(out, reserve, unique * 41 + source.lines * 8);
+    int map = open(argv[4], O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (map < 0) throw std::runtime_error("line map exists or cannot be created");
+    std::vector<unsigned char> buffer;
+    buffer.reserve(8 * 1024 * 1024 + 41);
+    auto flush = [&](int fd) {
+        space(fd, reserve, buffer.size());
+        writeAll(fd, buffer.data(), buffer.size());
+        buffer.clear();
+    };
+    uint64_t emitted = 0;
+    for (uint64_t index : indexes) {
+        if (mapping[index] == emitted) continue;
+        emitted = mapping[index];
+        buffer.insert(buffer.end(), input.data + index * 41, input.data + index * 41 + 40);
+        buffer.push_back('\n');
+        if (buffer.size() >= 8 * 1024 * 1024) flush(out);
+    }
+    flush(out);
+    for (uint64_t line : mapping) {
+        for (unsigned shift = 0; shift < 64; shift += 8) buffer.push_back((line >> shift) & 255);
+        if (buffer.size() >= 8 * 1024 * 1024) flush(map);
+    }
+    flush(map);
+    if (fsync(out) || fsync(map) || close(out) || close(map)) throw std::runtime_error("deduplication flush failed");
+    File saved(argv[3]), savedMap(argv[4]);
+    Summary output = inspect(saved), provenance = inspect(savedMap);
+    if (output.lines != unique || output.bytes != unique * 41 || provenance.bytes != source.lines * 8)
+        throw std::runtime_error("deduplicated counts failed verification");
+    for (uint64_t i = 0; i < unique; ++i) {
+        if (saved.data[i * 41 + 40] != '\n' || (i && memcmp(saved.data + (i - 1) * 41, saved.data + i * 41, 40) >= 0))
+            throw std::runtime_error("saved hashes are not sorted and unique");
+    }
+    for (uint64_t i = 0; i < source.lines; ++i) {
+        uint64_t line = 0;
+        for (unsigned j = 0; j < 8; ++j) line |= uint64_t(savedMap.data[i * 8 + j]) << (j * 8);
+        if (!line || line > unique || line != mapping[i] || memcmp(input.data + i * 41, saved.data + (line - 1) * 41, 40))
+            throw std::runtime_error("saved original-line mapping failed verification");
+    }
+    input.unchanged(); saved.unchanged(); savedMap.unchanged();
+    std::cout << "{\"input\":"; print(source);
+    std::cout << ",\"output\":"; print(output);
+    std::cout << ",\"lineMap\":"; print(provenance);
+    std::cout << "}" << std::endl;
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc < 3) throw std::runtime_error("usage: worker scan INPUT | worker convert INPUT OUTPUT RESERVE THREADS");
         File input(argv[2]);
         Summary source = inspect(input);
         if (std::string(argv[1]) == "scan") { print(source); return 0; }
+        if (std::string(argv[1]) == "deduplicate" && argc == 7) { deduplicate(input, source, argv); return 0; }
         if (std::string(argv[1]) != "convert" || argc != 6) throw std::runtime_error("invalid arguments");
         int threads = std::stoi(argv[5]);
         if (threads < 1 || threads > 96) throw std::runtime_error("invalid thread count");
