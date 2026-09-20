@@ -4,3 +4,5 @@ passwords
 bloom
 .DS_Store
 package-lock.json
+hash-inventory/
+__pycache__/
