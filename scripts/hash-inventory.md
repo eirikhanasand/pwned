@@ -60,8 +60,20 @@ obsolete hashes and previous metadata are moved/copied into the specified
 recoverable backup, and `cleanup.json` maps each original file to its new line.
 Mount the source, report and backup directories through one common parent
 bind mount: separate bind mounts prevent the atomic rename used for backups,
-even when their host directories share a device. Never overwrite existing
-`small.txt` or reuse a previous backup directory.
+even when their host directories share a device. Never reuse a backup directory.
+
+Use `--under-lines 100` to merge **all** active inventory text lists with 0–99
+logical records (including mixed lists and hash fixtures), retaining files with
+exactly 100 or more. Username-only lists are still removed, not merged. This
+explicit mode can extend an existing `small.txt` only when its checksum and
+line count match prior cleanup metadata. The existing entries stay first;
+new files are appended in filename order, without deduplication. The old
+aggregate, obsolete hash and metadata are backed up too. Each mapping contains
+the original file, its checksum, starting line in `small.txt` and `lineCount`
+(legacy single-record mappings imply a count of one). Empty files contribute
+zero records. Backup history and previous provenance remain in `cleanup.json`.
+Normal errors roll back source moves and restore metadata; do not interrupt
+the cleanup transaction. Repeating a completed consolidation is a no-op error.
 
 The converter now handles SIGINT/SIGTERM by finishing the current file and
 pausing at a file boundary. Resume the existing container after cleanup with

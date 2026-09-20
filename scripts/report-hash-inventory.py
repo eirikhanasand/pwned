@@ -18,7 +18,7 @@ def name(value):
 
 
 header = f"Snapshot: {summary['updatedAt']}\n\n"
-source_note = 'Username-only files were removed and single-entry password files were merged into small.txt, with recoverable originals.' if summary.get('sourceInventoryNormalized') else 'Original plaintext files are unchanged.'
+source_note = 'Username-only files were removed and short inventory files were merged into small.txt, with recoverable originals.' if summary.get('sourceInventoryNormalized') else 'Original plaintext files are unchanged.'
 lines = ['# Converted hash files\n\n', header, source_note + ' These are verified hash copies in `/home/hanasand/pwned/hash-inventory/files`.\n\n', '| Original file | Lines before | Lines after | Duplicate of |\n|---|---:|---:|---|\n']
 for row in converted:
     lines.append(f"| `{name(row['file'])}` | {row['source']['lines']:,} | {row['output']['lines']:,} | {name(row.get('duplicateOf', ''))} |\n")
@@ -35,10 +35,15 @@ for index, group in enumerate(duplicates, 1):
 (folder / 'duplicates.md').write_text(''.join(lines))
 if summary.get('sourceInventoryNormalized') and (folder / 'cleanup.json').exists():
     cleanup = json.loads((folder / 'cleanup.json').read_text())
-    lines = ['# Inventory cleanup\n\n', f"Removed {len(cleanup['usernameFilesRemoved'])} username-only files from the active inventory. Merged {len(cleanup['mergedFiles'])} single-entry password files into `small.txt` ({cleanup['smallLines']} lines), preserving duplicate entries.\n\n", f"Recoverable originals: `{cleanup['backupDirectory']}`.\n\n", '## Removed username files\n\n']
+    lines = ['# Inventory cleanup\n\n', f"Removed {len(cleanup['usernameFilesRemoved'])} username-only files from the active inventory. Merged {len(cleanup['mergedFiles'])} short inventory files into `small.txt` ({cleanup['smallLines']} lines), preserving duplicate entries.\n\n", '## Recoverable originals\n\n']
+    lines.extend(f"- `{name(path)}`\n" for path in cleanup.get('previousBackupDirectories', []) + [cleanup['backupDirectory']])
+    lines.append('\n## Removed username files\n\n')
     lines.extend(f"- `{name(file)}`\n" for file in cleanup['usernameFilesRemoved'])
-    lines.append('\n## Password files merged into small.txt\n\n| Original file | New line in small.txt |\n|---|---:|\n')
-    lines.extend(f"| `{name(row['file'])}` | {row['smallLine']} |\n" for row in cleanup['mergedFiles'])
+    lines.append('\n## Files merged into small.txt\n\nOriginal line order is preserved within each range. Empty files contribute no lines.\n\n| Original file | Lines before | Lines contributed | Lines in small.txt |\n|---|---:|---:|---|\n')
+    for row in cleanup['mergedFiles']:
+        count = row.get('lineCount', 1)
+        location = f"{row['smallLine']}–{row['smallLine'] + count - 1}" if count else '—'
+        lines.append(f"| `{name(row['file'])}` | {count} | {count} | {location} |\n")
     lines.append('\n## Mixed lists left unchanged\n\n')
     lines.extend(f"- `{name(file)}`\n" for file in cleanup['mixedListsPreserved'])
     (folder / 'cleanup.md').write_text(''.join(lines))
