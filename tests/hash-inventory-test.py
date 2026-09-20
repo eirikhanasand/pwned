@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as temporary:
     root = Path(temporary)
     source = root / 'source'
     source.mkdir()
-    fixtures = [b'', b'\n', b'HelloWorld', b'HelloWorld\n', b'a\r\n\r\nb\r', b' a \n\x00\xff\n', 'æøå\n'.encode(), b'x' * (9 * 1024 * 1024) + b'\nend']
+    fixtures = [b'', b'\n', b'HelloWorld', b'HelloWorld\n', b'a\r\n\r\nb\r', b' a \n\x00\xff\n', 'æøå\n'.encode(), b'x' * (9 * 1024 * 1024) + b'\nend', b'parallel\n' * 100005, b'\n' * (4 * 1024 * 1024 + 1)]
     for index, data in enumerate(fixtures):
         path = source / f'{index}.txt'
         path.write_bytes(data)
@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory() as temporary:
     command = [sys.executable, driver, '--source', str(source), '--destination', str(destination), '--worker', worker, '--reserve', '0', '--threads', '2']
     subprocess.run(command, check=True, capture_output=True)
     summary = json.loads((destination / 'summary.json').read_text())
-    assert summary['state'] == 'complete' and summary['totalFiles'] == 9
+    assert summary['state'] == 'complete' and summary['totalFiles'] == len(fixtures) + 1
     assert summary['inputLinesConverted'] == summary['outputLinesVerified']
     assert summary['duplicateGroups'] == 1
     assert (destination / 'files/3.txt.sha1').stat().st_ino == (destination / 'files/duplicate.txt.sha1').stat().st_ino
@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory() as temporary:
     subprocess.run([sys.executable, driver, '--source', str(source), '--destination', str(blocked), '--worker', worker, '--reserve', str(10**18)], check=True, capture_output=True)
     status = json.loads((blocked / 'summary.json').read_text())
     assert status['state'] == 'blocked_space' and status['convertedFiles'] == 0
-    assert status['remainingFiles'] == 9 and status['duplicatesAuditComplete']
+    assert status['remainingFiles'] == len(fixtures) + 1 and status['duplicatesAuditComplete']
     (destination / 'files/0.txt.sha1').chmod(0o600)
     (destination / 'files/0.txt.sha1').write_bytes(b'corrupt')
     assert subprocess.run(command, capture_output=True).returncode != 0
