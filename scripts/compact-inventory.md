@@ -85,5 +85,59 @@ line provenance and counts, duplicate runs, CRLF/binary/large records, input bat
 boundaries, 40-bit line encoding, rejected source changes, memory limits,
 exclusive output/locks, and pauses both before and during output writing.
 
+## Live handoff without rehashing (21 September 2026)
+
+The original worker lacks a runtime early-source-release option. The separate
+Linux `resume-compact-inventory.cpp` receiver can continue its partial index using
+the original process's already checked, sorted records. **Never kill, restart or
+resume the stopped donor:** its anonymous RAM is the only copy of unwritten
+records after early source deletion. The on-disk index format is unchanged.
+
+The receiver runs unprivileged inside the donor's existing 800 GB/no-swap cgroup.
+A short-lived 64 MiB helper with SYS_PTRACE and DAC_OVERRIDE checks the donor's
+PID-namespace identity, stopped state and exact anonymous mapping, then passes a
+read-only memory descriptor over a private Unix socket and exits. It never writes
+process memory. The receiver reads bounded 8 MiB chunks and at most a 64 MiB
+prefix bucket; it does not allocate a second full record array.
+
+The receiver reconstructs the unfinished prefix directory by decoding existing
+self-delimiting zlib blocks and comparing every complete block against donor RAM.
+Existing complete blocks are reused unchanged. Only an incomplete trailing write
+may be truncated and rewritten from RAM. Corruption causes failure, not silent
+discard. After appending the remaining blocks, it rereads and verifies the entire
+saved index against RAM before publishing, retaining exact filenames, lines and
+counts. The original source's final snapshot check is deliberately skipped under
+the user's early-deletion authorization; its initial checksum, byte/line counts,
+sort and line-permutation checks were already completed by the donor.
+
+`handoff-master-inventory.py start` is intentionally scoped to this exact Inspur
+master, source snapshot and named donor. It records the identity and memory
+address durably, stops only the original writer, and starts the receiver. It does
+not delete the source. The separate `release-source --allow-early-source-delete`
+command requires all previously completed blocks to be verified and at least
+512 MiB of additional output, then fsyncs output and records deletion intent.
+Because the donor's open descriptor and single-file bind mount retain the inode,
+it must truncate the verified exact original before unlinking to actually free
+305,105,563,518 bytes. This is permanent: a host/donor failure before completion
+requires the user's external backup. Other datasets and backups are untouched.
+
+The receiver retains a 100 GB free-space floor (the original used 150 GB). The
+projected final space after original reclamation is about 120 GB; unchanged
+external disk usage is not guaranteed. It waits with RAM retained if that floor
+is reached. No global caches are flushed.
+
+Monitor `master.pwnidx.handoff.status.json`, `.handoff.log`, `.handoff.exit.json`
+and the durable `.handoff.json` receipt, not the frozen donor's old status. A
+receiver failure does not release donor RAM. Inspect the error and repair/restart
+only the receiver if appropriate; it rescans/reuses complete saved blocks, with
+no rehash or sort. Never launch a second concurrent receiver. Do not remove the
+donor until exit code 0, full saved-index verification and reader checks establish
+a durable replacement; then stopping the donor releases its RAM.
+
+Build the receiver with the same native flags/libraries as the original. Real
+Docker process-handoff tests are in `tests/compact-handoff-test.py`; these include
+source removal, incomplete tails, corruption, dense blocks, disk waits, and
+receiver-only restart with donor RAM retained. The fixture donor is test-only.
+
 This builder does not integrate the index with the public API or UI. Completion
 of a hash build is not evidence that the website is using the new inventory.

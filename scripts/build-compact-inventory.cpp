@@ -116,7 +116,7 @@ struct Builder {
         if (lockFd >= 0) close(lockFd);
         if (directoryFd >= 0) close(directoryFd);
     }
-    void unchanged() {
+    virtual void unchanged() {
         struct stat current{}, named{};
         if (fstat(sourceFd, &current) || lstat(source.c_str(), &named) || !sameSnapshot(before, current) || !sameSnapshot(before, named))
             throw std::runtime_error("source snapshot changed; original retained, release not published");
