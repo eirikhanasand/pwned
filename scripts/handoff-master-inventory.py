@@ -42,7 +42,7 @@ def donor():
     if inspection['HostConfig']['Memory']!=800000000000 or inspection['HostConfig']['MemorySwap']!=800000000000:
         raise RuntimeError('donor memory/swap limits changed')
     expected_command=['/worker','/source/master.txt','/output/master.pwnidx','all_in_one/all_in_one_sorted.txt',str(LINES),str(LINES),str(SIZE),SHA,'800000000000','150000000000','16']
-    if inspection['Config']['Cmd']!=expected_command:
+    if [inspection['Path'], *inspection['Args']]!=expected_command:
         raise RuntimeError('donor was not launched with the verified master profile')
     mounts={item['Destination']:item for item in inspection['Mounts']}
     if mounts.get('/source/master.txt',{}).get('Source')!=str(SOURCE) or mounts['/source/master.txt']['RW'] or mounts.get('/output',{}).get('Source')!=str(ROOT):
@@ -59,7 +59,7 @@ def check_identity(receipt):
         raise RuntimeError('donor identity/state changed; do not touch source')
     return inspection,info
 
-if sys.argv[1:] == ['start']:
+if sys.argv[1:] in (['preflight'], ['start']):
     if RECEIPT.exists(): raise RuntimeError('handoff receipt already exists; inspect before any retry')
     report=json.loads((ROOT/'master.pwnidx.status.json').read_text())
     if report['state']!='writing' or report['hashedLines']!=LINES or report['hashedNewlines']!=LINES or report['readBytes']!=SIZE or report['recordMemoryBytes']!=LINES*25:
@@ -84,6 +84,9 @@ if sys.argv[1:] == ['start']:
         'receiverSha256':hashlib.sha256((ROOT/'compact-resume').read_bytes()).hexdigest(),
         'receiverCommand':['/output/compact-resume','/source/master.txt','/output/master.pwnidx','all_in_one/all_in_one_sorted.txt',
           str(LINES),str(LINES),str(SIZE),SHA,'800000000000','100000000000','16','/output/master.memory.sock',str(mappings[0]),str(info['start'])]}
+    if sys.argv[1:] == ['preflight']:
+        print(json.dumps({'state':'preflight_passed','recordBytes':LINES*25,'writtenBytes':report['writtenBytes'],'sourceUntouched':True}))
+        raise SystemExit(0)
     persist(RECEIPT,receipt,exclusive=True)
     run('docker','kill','--signal','STOP',CONTAINER)
     for attempt in range(50):
@@ -134,4 +137,4 @@ elif sys.argv[1:] == ['release-source','--allow-early-source-delete']:
     finally: os.close(fd)
     print(json.dumps({'state':receipt['state'],'sourceBytesReleased':SIZE,'sourceDeleted':True}))
 else:
-    raise SystemExit('usage: handoff-master-inventory.py start | release-source --allow-early-source-delete')
+    raise SystemExit('usage: handoff-master-inventory.py preflight | start | release-source --allow-early-source-delete')
