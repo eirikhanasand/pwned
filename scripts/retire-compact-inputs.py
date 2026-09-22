@@ -28,9 +28,11 @@ def exact(root, name):
 
 def run(root, index_path, retire=False):
     receipt = json.loads(Path(str(index_path) + '.receipt.json').read_text())
+    native = (receipt.get('originalSourceChecksumsVerified') is True
+              and receipt.get('preDeduplicationCountsVerified') is True)
     if (receipt.get('state') != 'verified' or not receipt.get('savedProvenanceVerified')
-            or not receipt.get('originalOrderHashChecksumsVerified')):
-        raise ValueError('requires verified finalized-overlay receipt')
+            or not (receipt.get('originalOrderHashChecksumsVerified') or native)):
+        raise ValueError('requires verified compact-overlay receipt')
     if not stat.S_ISREG(index_path.stat(follow_symlinks=False).st_mode):
         raise ValueError('index must be a regular disk file')
     with index_path.open('rb') as stream:
@@ -41,6 +43,7 @@ def run(root, index_path, retire=False):
     try:
         if index.unique != receipt['uniqueHashes']:
             raise ValueError('saved index count differs')
+        catalog = set(index.files)
     finally:
         index.close()
     rows = json.loads((root / 'converted.json').read_text())
@@ -52,15 +55,29 @@ def run(root, index_path, retire=False):
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     registry_path = root / 'compacted.json'
     registry = json.loads(registry_path.read_text()) if registry_path.exists() else {}
-    planned = removed = 0
-    for row in receipt['sources']:
-        if rows.get(row['file']) != row or not row.get('deduplicated'):
-            raise ValueError('legacy source receipt changed')
+    planned = removed = matched = 0
+    for saved in receipt['sources']:
+        row = rows.get(saved['file'])
+        if native:
+            # Newly converted originals have no old text hashes to retire.
+            if row is None:
+                continue
+            if (row.get('deduplicated') or row['source'] != saved['source']
+                    or row['file'] not in catalog
+                    or any(row['source'][k] != row['output'][k] for k in ('lines', 'newlines', 'terminated'))
+                    or not 0 <= saved['uniqueHashes'] <= saved['source']['lines']):
+                raise ValueError('native replacement does not verify this legacy raw source')
+            paths = (('outputPath', 'output'),)
+        else:
+            if row != saved or not row.get('deduplicated'):
+                raise ValueError('legacy source receipt changed')
+            paths = (('outputPath', 'output'), ('lineMapPath', 'lineMap'))
+        matched += 1
         entry = {'index': index_path.name, 'indexSha256': receipt['sha256'], 'source': row}
         prior = registry.get(row['file'])
         if prior and any(prior.get(k) != v for k, v in entry.items()):
             raise ValueError('retirement registry changed')
-        for path_key, metadata_key in (('outputPath', 'output'), ('lineMapPath', 'lineMap')):
+        for path_key, metadata_key in paths:
             path, expected = exact(root, row[path_key]), row[metadata_key]
             if not path.exists():
                 if not prior:
@@ -86,7 +103,7 @@ def run(root, index_path, retire=False):
         if retire:
             registry[row['file']] = {**entry, 'state': 'retired'}
             save_receipt(registry_path, registry)
-    return {'state': 'retired' if retire else 'planned', 'sourceFiles': len(receipt['sources']),
+    return {'state': 'retired' if retire else 'planned', 'sourceFiles': matched,
             'plannedBytes': planned, 'removedBytes': removed, 'originalsTouched': False}
 
 

@@ -39,6 +39,16 @@ native-builder and publisher regressions. Set `TEST_RAM_RETIREMENT=1` only in
 an isolated no-swap tmpfs test container to exercise volatile retirement using
 synthetic data and simulated low space.
 
+After checking live results, `retire-compact-inputs.py INVENTORY INDEX --retire`
+can remove superseded legacy text hashes/maps. Without `--retire` it only plans
+and verifies. It checks the durable index SHA-256 and every exact legacy input
+checksum, then journals each deletion in `compacted.json`. Native remaining-batch
+receipts cover the sixteen raw legacy hash files: their original source checksums
+and pre-dedupe counts must match the earlier conversion, and the original filename
+must be in the new catalog. New sources without legacy text hashes are skipped.
+Receipts, snapshots and original counts remain available after retirement; the
+legacy driver refuses this migrated inventory and import selection skips it.
+
 ## Importing previously finalized files
 
 `import-compact-overlay.py INVENTORY OUTPUT` plans a separate PWNIDX01 overlay
