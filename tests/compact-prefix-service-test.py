@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import struct
 import sys
@@ -11,7 +12,7 @@ import urllib.request
 import zlib
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
-from compact_index import build_index, prefix_of, encode_locations
+from compact_index import build_index, prefix_of
 
 spec = importlib.util.spec_from_file_location('service', Path(__file__).parents[1] / 'scripts/serve-compact-index.py')
 service = importlib.util.module_from_spec(spec)
@@ -36,10 +37,11 @@ with tempfile.TemporaryDirectory() as directory:
             assert magic == b'PWNPRF01' and actual_prefix == prefix_of(digest)
             assert json.loads(body[16:16+length]) == ['one.txt', 'two.txt']
             block = body[16+length:]
+            start, end = server.index.directory[prefix_of(digest):prefix_of(digest) + 2]
+            assert block == os.pread(server.index.file.fileno(), end - start, start)
             raw = zlib.decompress(block[4:])
             assert len(raw) == struct.unpack_from('<I', block)[0]
             assert raw[4:22] == digest[2:]
-            assert raw[30:] == encode_locations([(0, [(12, 1)]), (1, [(47, 1)])])
             assert server.index.lookup(digest) == {'count': 3, 'files': [
                 {'file': 'one.txt', 'count': 2, 'lineRanges': [[12, 13]]},
                 {'file': 'two.txt', 'count': 1, 'lineRanges': [[47, 47]]},
@@ -64,15 +66,23 @@ with tempfile.TemporaryDirectory() as directory:
         base = f'http://127.0.0.1:{server.server_port}'
         try:
             response = urllib.request.urlopen(base + '/range/' + prefix).read()
-            magic, length, actual = service.ENVELOPE.unpack_from(response)
-            assert magic == b'PWNPRF01' and actual == prefix_of(digest)
-            assert json.loads(response[16:16 + length]) == ['one.txt', 'two.txt', 'three.txt']
-            raw = zlib.decompress(response[20 + length:])
-            assert raw[4:22] == digest[2:]
-            assert raw[30:] == encode_locations([(0, [(12, 1)]), (1, [(47, 1)]), (2, [(12345678901, 1)])])
+            assert service.ENVELOPE.unpack_from(response) == (b'PWNPRF02', 2, prefix_of(digest))
+            position = 16
+            for index, catalog in zip(server.indexes, (['one.txt', 'two.txt'], ['three.txt'])):
+                frame_length, = struct.unpack_from('<I', response, position)
+                position += 4
+                frame = response[position:position + frame_length]
+                magic, length, actual = service.ENVELOPE.unpack_from(frame)
+                assert magic == b'PWNPRF01' and actual == prefix_of(digest)
+                assert json.loads(frame[16:16 + length]) == catalog
+                start, end = index.directory[actual:actual + 2]
+                assert frame[16 + length:] == os.pread(index.file.fileno(), end - start, start)
+                raw = zlib.decompress(frame[20 + length:])
+                assert raw[4:22] == digest[2:]
+                position += frame_length
+            assert position == len(response)
             empty = urllib.request.urlopen(base + '/range/' + empty_prefix).read()
-            assert service.ENVELOPE.unpack_from(empty) == (b'PWNPRF01', length, int(empty_prefix, 16))
-            assert len(empty) == 16 + length
+            assert service.ENVELOPE.unpack_from(empty) == (b'PWNPRF02', 2, int(empty_prefix, 16))
             old_limit = service.MAX_RESPONSE
             service.MAX_RESPONSE = 32
             try:

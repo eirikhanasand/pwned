@@ -1,22 +1,20 @@
 """Private, bounded prefix service. Never accepts passwords or complete hashes.
 
 Wire format: <8sII> (PWNPRF01, catalog JSON bytes, 20-bit prefix),
-UTF-8 catalog, then a uint32 raw-size + zlib block.
-Clients decompress and match the remaining hash locally. Source indexes are
-merged into one canonical PWNPRF01 frame: one occurrence per hash/file, with
-unsorted originals preferred over matching sorted copies. Saved audit data
-is read-only; normalization applies to every hash in the requested prefix.
+UTF-8 catalog, then the index's existing uint32 raw-size + zlib block.
+Clients decompress and match the remaining hash locally. Multiple disjoint
+indexes use PWNPRF02: <8sII> (magic, frame count, prefix), followed by uint32
+length + complete PWNPRF01 frame for each index. No blocks are recompressed.
 """
 import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 import re
 import struct
 import threading
-import zlib
 
-from compact_index import Index
-from deduplicated_prefix import canonical_block
+from compact_index import Index, MAX_BLOCK
 
 ENVELOPE = struct.Struct('<8sII')
 CONTENT_TYPE = 'application/vnd.hanasand.pwned-prefix'
@@ -45,13 +43,7 @@ class PrefixServer(ThreadingHTTPServer):
                 self.catalogs.append(json.dumps(index.files, separators=(',', ':')).encode())
             if sum(map(len, self.catalogs)) > 1024 * 1024:
                 raise ValueError('file catalogs exceed response budget')
-            self.index = self.indexes[0]
-            names = [name for index in self.indexes for name in index.files]
-            file_ids = {name: fid for fid, name in enumerate(names)}
-            self.originals = {fid: file_ids[name[:-11] + '.txt']
-                              for fid, name in enumerate(names)
-                              if name.endswith('_sorted.txt') and name[:-11] + '.txt' in file_ids}
-            self.catalog = json.dumps(names, separators=(',', ':')).encode()
+            self.index, self.catalog = self.indexes[0], self.catalogs[0]
             super().__init__(address, Handler)
         except BaseException:
             for index in self.indexes:
@@ -104,12 +96,29 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_body(400, b'{"error":"A five-character SHA-1 prefix is required."}')
         prefix = int(match[1], 16)
         try:
-            block = canonical_block(self.server.indexes, prefix, self.server.originals)
-            catalog = self.server.catalog
-            if 16 + len(catalog) + len(block) > MAX_RESPONSE:
-                raise ValueError('prefix response exceeds size budget')
-            body = ENVELOPE.pack(b'PWNPRF01', len(catalog), prefix) + catalog + block
-        except (OSError, ValueError, struct.error, zlib.error):
+            frames, raw_total, wire_total = [], 0, 16
+            for index, catalog in zip(self.server.indexes, self.server.catalogs):
+                start, end = index.directory[prefix:prefix + 2]
+                wire_total += 4 + 16 + len(catalog) + end - start
+                if wire_total > MAX_RESPONSE:
+                    raise ValueError('prefix response exceeds size budget')
+                if end == start:
+                    block = b''
+                else:
+                    if not 4 < end - start <= MAX_BLOCK + 65536:
+                        raise ValueError('invalid block size')
+                    block = os.pread(index.file.fileno(), end - start, start)
+                    if len(block) != end - start:
+                        raise ValueError('invalid saved block')
+                    expected, = struct.unpack_from('<I', block)
+                    raw_total += expected
+                    if expected < 8 or raw_total > MAX_BLOCK:
+                        raise ValueError('prefix expansion exceeds size budget')
+                frames.append(ENVELOPE.pack(b'PWNPRF01', len(catalog), prefix) + catalog + block)
+            body = frames[0] if len(frames) == 1 else (
+                ENVELOPE.pack(b'PWNPRF02', len(frames), prefix)
+                + b''.join(struct.pack('<I', len(frame)) + frame for frame in frames))
+        except (OSError, ValueError, struct.error):
             return self.send_body(503, b'{"error":"Index unavailable."}')
         self.send_body(200, body, CONTENT_TYPE)
 

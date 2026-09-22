@@ -15,9 +15,12 @@ application network and host loopback port 8099. `/range/ABCDE` accepts exactly
 five hexadecimal characters, returning the original compressed prefix block
 with its file catalog. It never accepts a password or complete hash. The
 `PWNPRF01` wire envelope is documented in `scripts/serve-compact-index.py`.
-The finalized and remaining overlays are included. Lookup results count each
-source once per hash and prefer matching unsorted originals over sorted copies.
-Original provenance remains in the immutable indexes for verification.
+The finalized and remaining inventories are physically consolidated into
+`compact-inventory/deduplicated/sources.pwnidx`: one stored occurrence per
+hash/source, with matching unsorted originals preferred over sorted copies.
+Empty source entries are removed. The lookup serves these stored records directly;
+it does not suppress or deduplicate results. Historical receipts retain the
+before/after evidence and original line references.
 
 Production conversion uses `--deduplicate --delete-verified-originals`: verify
 the full hash count before deduplication, verify saved unique hashes and their

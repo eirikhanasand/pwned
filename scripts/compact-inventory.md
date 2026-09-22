@@ -114,22 +114,46 @@ an unfinished `.partial`/`.verifying` output. Startup rejects repeated original
 filenames across catalogs, so importing the same source twice cannot inflate
 counts. Keep `small.txt`'s original filenames, not just its aggregate name.
 
-The serving layer merges each requested prefix into one PWNPRF01 frame. Each
-hash contributes at most one match per source, at its earliest original line.
-A `name_sorted.txt` match is omitted only when the identical hash also occurs in
-`name.txt` in the same directory, even across overlays. Sorted-only hashes and
-sources without an original counterpart remain searchable. Numeric chunks and
-unrelated source names are not inferred to be interchangeable.
+The service sends saved compressed blocks unchanged. A single index returns
+PWNPRF01; multiple disjoint catalogs return PWNPRF02. There is no lookup-time
+filtering or deduplication. Limits remain 32 MiB per response, 64 MiB combined
+expanded blocks, and 1 MiB catalogs. Corrupt or oversized input fails the query.
 
-The immutable indexes retain lossless provenance for verification and recovery;
-these are not rewritten or physically purged by lookup deduplication. Counts in
-lookup responses represent distinct retained sources, not repeated lines. The
-server still accepts only five-character prefixes; exact matching stays in the
-browser. Combined compressed reads and responses are bounded at 32 MiB, expanded
-blocks at 64 MiB, and catalogs at 1 MiB. Any corrupt input fails the whole query.
-Run `tests/deduplicated-prefix-test.py` and `tests/compact-prefix-service-test.py`
-for cross-overlay preference, retained sorted-only hashes, deduplication and wire
-compatibility checks. Historical PWNPRF02 responses remain supported by clients.
+### Physical source deduplication
+
+`rewrite-deduplicated-index.py --worker NATIVE --reserve-bytes BYTES OUTPUT INPUT...`
+replaces duplicate stored provenance, rather than changing lookup results.
+Compile `rewrite-deduplicated-index.cpp` with the original builder's native flags
+and libraries. Inputs require verified `.receipt.json` files and remain read-only.
+The worker checks their complete SHA-256 checksums against those receipts.
+
+The first pass scans every hash and run, keeps the earliest original line per
+hash/file, and discards a `name_sorted.txt` occurrence only when the same hash
+exists in `name.txt` in the same directory. Sorted-only passwords survive.
+A new compact file catalog omits sources left with no records. The second pass
+writes the replacement; the third reconstructs every expected record from the
+inputs and compares it to the saved replacement. Publication happens only after
+complete verification and fsync. A saved checksum and reconciled before/after
+counts are recorded in `.receipt.json`; `.status.json` tracks progress. No input
+is deleted by the builder. An error leaves sources and partial output intact;
+existing output/partial files prevent accidental overwrite or restart.
+
+Production uses 8 CPUs, a 12 GiB/no-swap cap and a 30 GB free-disk floor. The
+already unique, single-file master does not need rewriting: its verified original
+occurrence count equals the stored unique count (26,921,656,388). Its original
+checksum/count verification receipt remains authoritative. The finalized and
+remaining overlays are replaced by `deduplicated/sources.pwnidx`. Deploy this
+index through `compose.prefix.yml`, verify the direct reader and live decoder,
+and only then run `retire-rewritten-indexes.py --container pwned-index
+REPLACEMENT OLD_INDEX... --retire`. Its dry-run default and retirement both check
+the full replacement/source checksums and current container mounts; a durable
+deletion receipt precedes removal of the exact old indexes.
+Historical conversion receipts remain audit history, not active lookup data.
+Future imports must undergo this physical normalization before publication.
+
+Tests: `tests/rewrite-deduplicated-index-test.py NATIVE`,
+`tests/retire-rewritten-indexes-test.py`, `tests/compact-prefix-service-test.py`,
+and `tests/compact-index-test.py`.
 
 ## Original master build (historical procedure)
 
