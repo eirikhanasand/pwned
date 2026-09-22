@@ -216,6 +216,74 @@ class Index:
     def close(self):
         self.file.close()
 
+    def records(self):
+        """Read every saved hash and provenance run, validating block structure.
+
+        Used for full verification of new overlays, not on the request path.
+        Yields the same (digest, file_id, first_line, count) shape as build_index.
+        """
+        unique = 0
+        for prefix in range(PREFIXES):
+            start, end = self.directory[prefix:prefix + 2]
+            if start == end:
+                continue
+            if not 4 < end - start <= MAX_BLOCK + 65536:
+                raise ValueError('invalid compressed block size')
+            block = os.pread(self.file.fileno(), end - start, start)
+            if len(block) != end - start:
+                raise ValueError('truncated compressed block')
+            expected, = struct.unpack_from('<I', block)
+            if not 8 <= expected <= MAX_BLOCK:
+                raise ValueError('invalid raw block size')
+            inflater = zlib.decompressobj()
+            data = inflater.decompress(block[4:], MAX_BLOCK + 1)
+            if len(data) != expected or not inflater.eof or inflater.unused_data:
+                raise ValueError('corrupt compressed block')
+            count, = struct.unpack_from('<I', data)
+            offsets_start = 4 + count * 18
+            postings_start = offsets_start + (count + 1) * 4
+            if not count or postings_start > len(data):
+                raise ValueError('invalid block count')
+            offsets = struct.unpack_from(f'<{count + 1}I', data, offsets_start)
+            if offsets[0] != 0 or postings_start + offsets[-1] != len(data):
+                raise ValueError('invalid provenance boundaries')
+            previous_digest = None
+            for i in range(count):
+                suffix = data[4 + i * 18:4 + (i + 1) * 18]
+                digest = (prefix >> 4).to_bytes(2, 'big') + suffix
+                if prefix_of(digest) != prefix or (previous_digest is not None and digest <= previous_digest):
+                    raise ValueError('unordered or misplaced hash')
+                previous_digest = digest
+                position, limit = postings_start + offsets[i], postings_start + offsets[i + 1]
+                if not postings_start <= position < limit <= len(data):
+                    raise ValueError('invalid provenance offsets')
+                groups, position = read_varint(data, position, limit)
+                if not 1 <= groups <= len(self.files):
+                    raise ValueError('invalid provenance groups')
+                file_id = 0
+                for group in range(groups):
+                    delta, position = read_varint(data, position, limit)
+                    file_id += delta
+                    if file_id >= len(self.files) or (group and not delta):
+                        raise ValueError('invalid provenance source')
+                    runs, position = read_varint(data, position, limit)
+                    if not 1 <= runs <= (limit - position) // 2:
+                        raise ValueError('invalid provenance runs')
+                    line = 0
+                    for _ in range(runs):
+                        delta, position = read_varint(data, position, limit)
+                        length, position = read_varint(data, position, limit)
+                        if not delta or not length or line + delta + length - 1 >= 1 << 64:
+                            raise ValueError('invalid provenance range')
+                        line += delta
+                        yield digest, file_id, line, length
+                        line += length - 1
+                if position != limit:
+                    raise ValueError('trailing provenance data')
+                unique += 1
+        if unique != self.unique:
+            raise ValueError('unique hash count mismatch')
+
     def lookup(self, digest):
         if len(digest) != 20:
             raise ValueError('SHA-1 must be exactly 20 bytes')

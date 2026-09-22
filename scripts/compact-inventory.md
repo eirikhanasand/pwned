@@ -1,5 +1,34 @@
 # Compact, in-memory inventory build
 
+## Importing previously finalized files
+
+`import-compact-overlay.py INVENTORY OUTPUT` plans a separate PWNIDX01 overlay
+from the finalized entries in `converted.json`, smallest original files first.
+It does not open or rewrite the master index. `--max-lines` bounds a batch;
+the default mode only inspects metadata. `--verify-inputs` checks the selected
+hashes and maps in RAM without writing an index. `--build` additionally writes,
+rereads and verifies every saved hash, original filename and line before
+publishing the overlay and an immutable `.receipt.json`.
+
+Input checks include saved checksums, pre-deduplication line counts, sorted unique
+hashes, valid line-map ordinals, and reconstruction of the entire original-order
+hash checksum (including an absent final LF). Merged `small.txt` records recover
+their original filenames and local line numbers from `cleanup.json`; missing,
+overlapping or incomplete provenance fails. No input, backup or original is
+deleted by this importer. Verified overlays are not automatically served.
+
+The importer takes the existing inventory lock, bounds its planned memory, and
+requires room for a conservative output estimate above the disk reserve. Use a
+no-network, no-swap container with a matching memory limit. Its default reserve
+is still 150 GB; low disk is not permission to bypass that floor. Any leftover
+`.verifying` file or receipt after interruption requires inspection before retry.
+Do not rerun a batch under a different output name without checking receipts,
+since overlapping overlays would double-count occurrences.
+
+Run `python3 tests/compact-overlay-test.py` for import and corruption regressions.
+
+## Original master build (historical procedure)
+
 The incomplete numeric all-in-one splits have been retired. Do not restart the
 old `pwned-hash-inventory-349ee56` converter or recreate plaintext splits. Its
 remaining non-split datasets, conversion receipts and cleanup backups remain
