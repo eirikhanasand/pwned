@@ -49,6 +49,8 @@ def run(args):
     if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
         raise ValueError('source and destination must be separate, non-overlapping directories')
     destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if (destination / 'compacted.json').exists():
+        raise RuntimeError('inventory has migrated to compact indexes; do not restart the legacy converter')
     lock = (destination / 'run.lock').open('w')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     plan_path = destination / 'inventory.json'

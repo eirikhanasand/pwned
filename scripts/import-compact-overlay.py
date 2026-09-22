@@ -41,7 +41,9 @@ def read_verified(root, name, expected):
 
 def selection(root, max_lines):
     rows = json.loads((root / 'converted.json').read_text())
-    eligible = sorted((r for r in rows if r.get('deduplicated')),
+    registry = root / 'compacted.json'
+    compacted = json.loads(registry.read_text()) if registry.exists() else {}
+    eligible = sorted((r for r in rows if r.get('deduplicated') and r['file'] not in compacted),
                       key=lambda r: (r['source']['bytes'], r['file']))
     selected, lines = [], 0
     for row in eligible:
@@ -56,7 +58,8 @@ def selection(root, max_lines):
     return selected, {
         'selectedFiles': len(selected), 'originalLines': lines,
         'remainingFinalizedFiles': len(eligible) - len(selected),
-        'notFinalizedFiles': len(rows) - len(eligible),
+        'notFinalizedFiles': sum(not r.get('deduplicated') and r['file'] not in compacted for r in rows),
+        'compactedFiles': len(compacted),
         'memoryBudgetBytes': lines * 192 + largest * 3 + 256 * 1024**2,
         # Conservative allowance for sparse prefix compression and postings.
         'estimatedMaximumIndexBytes': lines * 100 + 16 * 1024**2,
