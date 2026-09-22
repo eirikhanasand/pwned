@@ -5,6 +5,7 @@ destination directory needs write access. Interrupted copies are rechecked
 byte-for-byte against the source before appending. Low space waits in place.
 """
 import argparse
+from contextlib import contextmanager
 import errno
 import fcntl
 import hashlib
@@ -14,6 +15,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import subprocess
 import time
 
 from compact_index import Index
@@ -30,16 +32,53 @@ def regular(path, flags):
     return os.fdopen(fd, 'r+b' if flags & os.O_RDWR else 'rb', buffering=0)
 
 
-def snapshot(path):
+def snapshot(path, container=None):
+    if container:
+        code = 'import os,sys,json,stat;s=os.stat(sys.argv[1],follow_symlinks=False);assert stat.S_ISREG(s.st_mode);print(json.dumps([s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns]))'
+        return tuple(json.loads(subprocess.check_output(['docker', 'exec', container, 'python3', '-c', code, str(path)])))
     value = path.stat(follow_symlinks=False)
     return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
 
 
-def publish(source, target, reserve, wait, owner=None):
-    if reserve < 0 or source.resolve() == target.resolve() or target.name == 'master.pwnidx':
+@contextmanager
+def source_reader(source, container):
+    if not container:
+        with regular(source, os.O_RDONLY) as stream:
+            yield stream
+        return
+    process = subprocess.Popen(['docker', 'exec', container, 'cat', str(source)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        yield process.stdout
+        if process.wait(timeout=30):
+            raise RuntimeError('container source stream failed')
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        process.stdout.close()
+        process.stderr.close()
+
+
+def publish(source, target, reserve, wait, owner=None, container=None):
+    if reserve < 0 or (not container and source.resolve() == target.resolve()) or target.name == 'master.pwnidx':
         raise ValueError('invalid publication target or reserve')
-    with regular(Path(str(source) + '.receipt.json'), os.O_RDONLY) as stream:
-        data = stream.read(2 * 1024 * 1024 + 1)
+    receipt_path = Path(str(source) + '.receipt.json')
+    if container:
+        if not source.is_absolute() or '..' in source.parts:
+            raise ValueError('container source must be an absolute path')
+        # Pin the container identity so name reuse cannot switch sources midway.
+        container = subprocess.check_output(['docker', 'inspect', '--format', '{{.Id}}', container], text=True).strip()
+        if not re.fullmatch('[0-9a-f]{64}', container):
+            raise ValueError('invalid source container')
+        code = 'import sys;sys.stdout.buffer.write(open(sys.argv[1],"rb").read(2*1024*1024+1))'
+        data = subprocess.check_output(['docker', 'exec', container, 'python3', '-c', code, str(receipt_path)])
+    else:
+        with regular(receipt_path, os.O_RDONLY) as stream:
+            data = stream.read(2 * 1024 * 1024 + 1)
     if len(data) > 2 * 1024 * 1024:
         raise ValueError('receipt exceeds bound')
     receipt = json.loads(data)
@@ -49,7 +88,7 @@ def publish(source, target, reserve, wait, owner=None):
             or not isinstance(receipt.get('bytes'), int) or receipt['bytes'] <= 0
             or receipt.get('occurrences') != receipt.get('originalLines')):
         raise ValueError('source has no complete verification receipt')
-    before = snapshot(source)
+    before = snapshot(source, container)
     if before[2] != receipt['bytes']:
         raise ValueError('source size differs from receipt')
     staged = Path(str(target) + '.copy.partial')
@@ -72,7 +111,7 @@ def publish(source, target, reserve, wait, owner=None):
         candidate = target if existing_release else staged
         complete_copy = candidate.exists() and candidate.stat().st_size == receipt['bytes']
         flags = os.O_RDONLY if existing_release or complete_copy else os.O_RDWR | os.O_CREAT
-        with regular(source, os.O_RDONLY) as src, regular(candidate, flags) as dst:
+        with source_reader(source, container) as src, regular(candidate, flags) as dst:
             saved = os.fstat(dst.fileno()).st_size
             if saved > receipt['bytes']:
                 raise ValueError('saved copy exceeds source size')
@@ -108,7 +147,7 @@ def publish(source, target, reserve, wait, owner=None):
                     pending = pending[count:]
                     saved += count
                 os.fsync(dst.fileno())
-            if src.read(1) or snapshot(source) != before:
+            if src.read(1) or snapshot(source, container) != before:
                 raise ValueError('source changed during copy')
             dst.seek(0)
             if hashlib.file_digest(dst, 'sha256').hexdigest() != receipt['sha256']:
@@ -148,10 +187,11 @@ if __name__ == '__main__':
     parser.add_argument('--reserve-bytes', type=int, required=True,
                         help='explicit destination free-space floor, checked before and during copying')
     parser.add_argument('--owner', type=int, help='final index uid/gid when running the publisher as root')
+    parser.add_argument('--container', help='stream the source from this running Docker container instead of a bind mount')
     args = parser.parse_args()
 
     def wait(state, saved, total):
         print(json.dumps({'state': state, 'savedBytes': saved, 'totalBytes': total}), flush=True)
         time.sleep(30)
 
-    print(json.dumps(publish(args.source, args.target, args.reserve_bytes, wait, args.owner)), flush=True)
+    print(json.dumps(publish(args.source, args.target, args.reserve_bytes, wait, args.owner, args.container)), flush=True)

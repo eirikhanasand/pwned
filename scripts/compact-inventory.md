@@ -50,6 +50,12 @@ tool. Configure and test the new live overlay before retiring superseded
 representations, then release its RAM. The 303-file batch uses a separately
 assessed 20GB disk-copy floor; this does not change the master/build defaults.
 Run `python3 tests/publish-compact-overlay-test.py` for transfer regressions.
+Where a tmpfs cannot be shared with another container, run the publisher on
+the host with `--container BUILD_CONTAINER /work/INDEX /disk/INDEX`: it pins the
+container ID and reads through Docker's normal exec stream. No `/proc` mount,
+privileged helper, host-wide capability or extra large temporary copy is needed.
+`tests/publish-compact-overlay-docker-test.py` verifies this path with a small,
+disposable RAM-only fixture; never use production data for that test.
 
 ### Serving additional indexes
 
