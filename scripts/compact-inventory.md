@@ -114,14 +114,22 @@ an unfinished `.partial`/`.verifying` output. Startup rejects repeated original
 filenames across catalogs, so importing the same source twice cannot inflate
 counts. Keep `small.txt`'s original filenames, not just its aggregate name.
 
-A single index still returns PWNPRF01. Multiple indexes return PWNPRF02:
-little-endian `<8sII>` (magic, frame count, prefix), followed by a uint32 length
-and a complete PWNPRF01 frame per index. The saved compressed buckets are sent
-unchanged; full-hash matching and combining file/count results happen only in
-the browser. Limits are 32 MiB per response, 64 MiB combined decompressed
-blocks, and 1 MiB combined catalogs. An unavailable or excessive bucket fails
-the whole query rather than silently reporting a partial count. Deploy the
-bundle-capable browser before enabling the first overlay.
+The serving layer merges each requested prefix into one PWNPRF01 frame. Each
+hash contributes at most one match per source, at its earliest original line.
+A `name_sorted.txt` match is omitted only when the identical hash also occurs in
+`name.txt` in the same directory, even across overlays. Sorted-only hashes and
+sources without an original counterpart remain searchable. Numeric chunks and
+unrelated source names are not inferred to be interchangeable.
+
+The immutable indexes retain lossless provenance for verification and recovery;
+these are not rewritten or physically purged by lookup deduplication. Counts in
+lookup responses represent distinct retained sources, not repeated lines. The
+server still accepts only five-character prefixes; exact matching stays in the
+browser. Combined compressed reads and responses are bounded at 32 MiB, expanded
+blocks at 64 MiB, and catalogs at 1 MiB. Any corrupt input fails the whole query.
+Run `tests/deduplicated-prefix-test.py` and `tests/compact-prefix-service-test.py`
+for cross-overlay preference, retained sorted-only hashes, deduplication and wire
+compatibility checks. Historical PWNPRF02 responses remain supported by clients.
 
 ## Original master build (historical procedure)
 
