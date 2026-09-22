@@ -27,6 +27,23 @@ since overlapping overlays would double-count occurrences.
 
 Run `python3 tests/compact-overlay-test.py` for import and corruption regressions.
 
+### Serving additional indexes
+
+`serve-compact-index.py MASTER --overlay VERIFIED_OVERLAY` accepts up to 16
+indexes. Mount each file read-only and list it explicitly; do not mount or serve
+an unfinished `.partial`/`.verifying` output. Startup rejects repeated original
+filenames across catalogs, so importing the same source twice cannot inflate
+counts. Keep `small.txt`'s original filenames, not just its aggregate name.
+
+A single index still returns PWNPRF01. Multiple indexes return PWNPRF02:
+little-endian `<8sII>` (magic, frame count, prefix), followed by a uint32 length
+and a complete PWNPRF01 frame per index. The saved compressed buckets are sent
+unchanged; full-hash matching and combining file/count results happen only in
+the browser. Limits are 32 MiB per response, 64 MiB combined decompressed
+blocks, and 1 MiB combined catalogs. An unavailable or excessive bucket fails
+the whole query rather than silently reporting a partial count. Deploy the
+bundle-capable browser before enabling the first overlay.
+
 ## Original master build (historical procedure)
 
 The incomplete numeric all-in-one splits have been retired. Do not restart the

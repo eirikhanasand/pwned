@@ -55,4 +55,45 @@ with tempfile.TemporaryDirectory() as directory:
         finally:
             server.shutdown()
             worker.join()
+    overlay = Path(directory) / 'overlay.pwnidx'
+    build_index(overlay, ['three.txt'], [(digest, 0, 12345678901, 1)], reserve=0)
+    with service.PrefixServer(('127.0.0.1', 0), path, [overlay]) as server:
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        base = f'http://127.0.0.1:{server.server_port}'
+        try:
+            response = urllib.request.urlopen(base + '/range/' + prefix).read()
+            assert service.ENVELOPE.unpack_from(response) == (b'PWNPRF02', 2, prefix_of(digest))
+            position = 16
+            for catalog in (['one.txt', 'two.txt'], ['three.txt']):
+                frame_length, = struct.unpack_from('<I', response, position)
+                position += 4
+                frame = response[position:position + frame_length]
+                magic, length, actual = service.ENVELOPE.unpack_from(frame)
+                assert magic == b'PWNPRF01' and actual == prefix_of(digest)
+                assert json.loads(frame[16:16 + length]) == catalog
+                raw = zlib.decompress(frame[20 + length:])
+                assert raw[4:22] == digest[2:]
+                position += frame_length
+            assert position == len(response)
+            empty = urllib.request.urlopen(base + '/range/' + empty_prefix).read()
+            assert service.ENVELOPE.unpack_from(empty) == (b'PWNPRF02', 2, int(empty_prefix, 16))
+            old_limit = service.MAX_RESPONSE
+            service.MAX_RESPONSE = 32
+            try:
+                urllib.request.urlopen(base + '/range/' + prefix)
+                raise AssertionError('response size budget bypassed')
+            except urllib.error.HTTPError as error:
+                assert error.code == 503
+            finally:
+                service.MAX_RESPONSE = old_limit
+        finally:
+            server.shutdown()
+            worker.join()
+    for overlays in ([path], [overlay] * 16):
+        try:
+            service.PrefixServer(('127.0.0.1', 0), path, overlays)
+            raise AssertionError('overlapping or excessive indexes accepted')
+        except ValueError:
+            pass
 print('Compact prefix service checks passed.')
