@@ -188,10 +188,22 @@ if __name__ == '__main__':
                         help='explicit destination free-space floor, checked before and during copying')
     parser.add_argument('--owner', type=int, help='final index uid/gid when running the publisher as root')
     parser.add_argument('--container', help='stream the source from this running Docker container instead of a bind mount')
+    parser.add_argument('--wait-source', action='store_true', help='wait for atomic publication of the verified source inside the container')
     args = parser.parse_args()
 
     def wait(state, saved, total):
         print(json.dumps({'state': state, 'savedBytes': saved, 'totalBytes': total}), flush=True)
         time.sleep(30)
 
+    if args.wait_source:
+        if not args.container or not args.source.is_absolute():
+            parser.error('--wait-source requires --container and an absolute source path')
+        args.container = subprocess.check_output(['docker', 'inspect', '--format', '{{.Id}}', args.container], text=True).strip()
+        while True:
+            check = subprocess.run(['docker', 'exec', args.container, 'test', '-f', str(args.source)], capture_output=True)
+            if check.returncode == 0:
+                break
+            if check.returncode != 1:
+                raise RuntimeError('source container is unavailable; retained inputs were not changed')
+            wait('waiting_for_verified_source', 0, 0)
     print(json.dumps(publish(args.source, args.target, args.reserve_bytes, wait, args.owner, args.container)), flush=True)
