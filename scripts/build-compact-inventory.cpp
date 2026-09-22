@@ -121,6 +121,8 @@ struct Builder {
         if (fstat(sourceFd, &current) || lstat(source.c_str(), &named) || !sameSnapshot(before, current) || !sameSnapshot(before, named))
             throw std::runtime_error("source snapshot changed; original retained, release not published");
     }
+    virtual std::pair<uint64_t, uint64_t> location(uint64_t line) const { return {0, line}; }
+    virtual void noteFileHash(uint64_t) {}
     uint64_t freeSpace() {
 #ifdef PWNED_TESTING
         if (const char* path = getenv("PWNED_TEST_SPACE_FILE")) {
@@ -347,17 +349,32 @@ struct Builder {
             uint64_t stop = i + 1;
             while (stop < end && memcmp(records[i].hash, records[stop].hash, 20) == 0) ++stop;
             hashes.insert(hashes.end(), records[i].hash + 2, records[i].hash + 20);
-            uint64_t runs = 1;
-            for (uint64_t j = i + 1; j < stop; ++j) if (lineOf(records[j]) != lineOf(records[j-1]) + 1) ++runs;
-            varint(posts, 1); varint(posts, 0); varint(posts, runs);
-            uint64_t previous = 0;
+            uint64_t fileCount = 0, lastFile = UINT64_MAX;
+            for (uint64_t j = i; j < stop; ++j) {
+                auto file = location(lineOf(records[j])).first;
+                if (file != lastFile) { ++fileCount; lastFile = file; }
+            }
+            varint(posts, fileCount);
+            uint64_t previousFile = 0;
             for (uint64_t j = i; j < stop;) {
-                uint64_t last = j + 1;
-                while (last < stop && lineOf(records[last]) == lineOf(records[last-1]) + 1) ++last;
-                uint64_t line = lineOf(records[j]);
-                varint(posts, line - previous); varint(posts, last - j);
-                if (posts.size() > BLOCK_LIMIT) throw std::runtime_error("single-hash provenance exceeds block bound");
-                previous = lineOf(records[last-1]); j = last;
+                auto firstLocation = location(lineOf(records[j]));
+                if (phase == "writing") noteFileHash(firstLocation.first);
+                uint64_t fileEnd = j + 1, runs = 1;
+                while (fileEnd < stop && location(lineOf(records[fileEnd])).first == firstLocation.first) {
+                    if (lineOf(records[fileEnd]) != lineOf(records[fileEnd-1]) + 1) ++runs;
+                    ++fileEnd;
+                }
+                varint(posts, firstLocation.first - previousFile); varint(posts, runs);
+                previousFile = firstLocation.first;
+                uint64_t previous = 0;
+                while (j < fileEnd) {
+                    uint64_t last = j + 1;
+                    while (last < fileEnd && lineOf(records[last]) == lineOf(records[last-1]) + 1) ++last;
+                    uint64_t line = location(lineOf(records[j])).second;
+                    varint(posts, line - previous); varint(posts, last - j);
+                    if (posts.size() > BLOCK_LIMIT) throw std::runtime_error("single-hash provenance exceeds block bound");
+                    previous = line + last - j - 1; j = last;
+                }
             }
             ++count;
             if (8ULL + hashes.size() + offsets.size() + 4 + posts.size() > BLOCK_LIMIT)

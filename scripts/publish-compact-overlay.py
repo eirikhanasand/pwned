@@ -83,7 +83,9 @@ def publish(source, target, reserve, wait, owner=None, container=None):
         raise ValueError('receipt exceeds bound')
     receipt = json.loads(data)
     if (receipt.get('state') != 'verified' or receipt.get('savedProvenanceVerified') is not True
-            or receipt.get('originalOrderHashChecksumsVerified') is not True
+            or not (receipt.get('originalOrderHashChecksumsVerified') is True or (
+                receipt.get('originalSourceChecksumsVerified') is True
+                and receipt.get('preDeduplicationCountsVerified') is True))
             or not re.fullmatch('[0-9a-f]{64}', receipt.get('sha256', ''))
             or not isinstance(receipt.get('bytes'), int) or receipt['bytes'] <= 0
             or receipt.get('occurrences') != receipt.get('originalLines')):

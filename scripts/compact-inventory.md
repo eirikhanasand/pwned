@@ -1,5 +1,44 @@
 # Compact, in-memory inventory build
 
+## Remaining-source RAM batch
+
+`build-compact-batch.cpp` reuses the native packed-record builder and prefix
+format, mapping global sort ordinals back to explicit filenames/local lines.
+`run-remaining-inventory.py` excludes the already-covered master and finalized
+overlay, profiles remaining originals smallest first, checks inventory snapshots,
+and drives a bounded RAM build. It creates one additional index, not a database
+row per occurrence or a new plaintext/hash-text intermediate. The sixteen
+unfinalized sources are rehashed from their retained originals; neither completed
+index is rehashed or sorted. Each output retains all original occurrences while
+deduplicating stored hashes. Per-file original/unique counts are in the receipt.
+
+Production must use a no-swap container, a bounded `/work` tmpfs and a matching
+memory cap. Source retirement is disabled until the complete RAM index has been
+reread, every compressed block/provenance record compared to the sorted records,
+and its checksum independently verified. `--release-sources-from-ram` explicitly
+permits deleting checked originals smallest-first if needed to fit the durable
+copy above the configured reserve. This option requires tmpfs and cgroup swap=0.
+Each exact path is rechecked for its original snapshot, checksum and line count,
+with a durable deletion intent before unlink. **RAM-only retirement risks loss
+on host/container restart until disk publication succeeds.** Keep the container
+alive on both success and errors; never use `--rm` for production or restart it
+to clear a disk wait. The publisher preserves the RAM file and resumes writes.
+
+The disk replacement gets a full saved checksum/header/count check, fsync and
+atomic publication; only then are any remaining originals retired. Immutable
+old receipts stay as audit history; `remaining.status.json`, `remaining.plan.json`,
+`remaining.retirement.json` and `remaining.report.json` describe the new storage.
+Legacy text hashes/maps are kept until live index integration is checked.
+The packed sort array is released at builder exit; retain only the compressed
+RAM result until live checks pass. Do not run the old converter against this
+retired inventory, or mistake its historical remaining.json for current state.
+
+Compile the batch with the same flags/libraries as the native builder. Run
+`tests/compact-batch-test.py BATCH_BINARY SCANNER_BINARY`, plus the original
+native-builder and publisher regressions. Set `TEST_RAM_RETIREMENT=1` only in
+an isolated no-swap tmpfs test container to exercise volatile retirement using
+synthetic data and simulated low space.
+
 ## Importing previously finalized files
 
 `import-compact-overlay.py INVENTORY OUTPUT` plans a separate PWNIDX01 overlay
