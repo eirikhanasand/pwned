@@ -1,0 +1,31 @@
+services:
+  pwned-index:
+    image: python:3.13-alpine
+    container_name: pwned-index
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 2
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: [python3, /app/serve-compact-index.py, /inventory/master.pwnidx, --host, 0.0.0.0, --port, "8099"]
+    volumes:
+      - ./scripts:/app:ro
+      - ./compact-inventory/master.pwnidx:/inventory/master.pwnidx:ro
+    ports:
+      - "127.0.0.1:8099:8099"
+    networks: [hanasand]
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  hanasand:
+    external: true
+    name: hanasand_hanasandnet
