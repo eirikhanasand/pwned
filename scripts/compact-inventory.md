@@ -27,6 +27,30 @@ since overlapping overlays would double-count occurrences.
 
 Run `python3 tests/compact-overlay-test.py` for import and corruption regressions.
 
+For constrained disks, a dedicated, size-limited tmpfs may hold the overlay
+while it is built and verified. Its pages count toward the builder's no-swap
+memory limit. Use `--reserve-bytes 0` only for that explicit RAM destination;
+retain all source hashes/maps. Keep the tmpfs-owning container alive afterward:
+a verified RAM file is not a durable replacement.
+
+`publish-compact-overlay.py SOURCE TARGET --reserve-bytes BYTES` copies an
+already-verified overlay to disk. The source and its `.receipt.json` are
+read-only inputs; only a dedicated overlay output directory needs write access.
+The publisher requires an explicit free-space floor, checks room for the
+remaining copy before writing, and rechecks space while copying. It waits on
+low space or ENOSPC rather than restarting the build. Its intent receipt and
+`.copy.partial` allow resumption: every saved byte is compared with the source
+before appending, and corruption fails without discarding either copy.
+
+The complete saved checksum, index boundaries and unique count are verified
+before fsync and atomic publication. `--owner UID` sets the final index uid/gid
+when a root helper is needed to read a private tmpfs. The published index is
+read-only. Neither the RAM file nor any old hashes/maps are deleted by this
+tool. Configure and test the new live overlay before retiring superseded
+representations, then release its RAM. The 303-file batch uses a separately
+assessed 20GB disk-copy floor; this does not change the master/build defaults.
+Run `python3 tests/publish-compact-overlay-test.py` for transfer regressions.
+
 ### Serving additional indexes
 
 `serve-compact-index.py MASTER --overlay VERIFIED_OVERLAY` accepts up to 16
